@@ -42,8 +42,11 @@ async function runOne(
 			modelName: AIModels.GEMINI_3_FLASH_PREVIEW,
 			maxTokens: 1200,
 			temperature: 0.4,
-			// best-effort: do NOT throw — a failed specialist is simply skipped
+			// best-effort: do NOT throw — a failed specialist is simply skipped.
 			throwOnExhaustion: false,
+			// Fail FAST: never let a specialist's retry/backoff (e.g. on 429) stall the
+			// whole generation and trigger a WebSocket disconnect. One attempt only.
+			retryLimit: 1,
 		});
 		const text = result && typeof result === 'object' && 'string' in result ? (result.string as string).trim() : '';
 		return text ? { title: specialist.title, text } : null;
@@ -69,8 +72,18 @@ export async function runSpecialistBrief(
 	if (needed.length === 0) return '';
 
 	logger.info('Running Daisan specialists', { specialists: needed.map((s) => s.id) });
-	const results = await Promise.all(needed.map((s) => runOne(s, query, env, inferenceContext)));
-	const sections = results.filter((r): r is { title: string; text: string } => !!r);
+
+	// Hard timeout: specialists must NEVER delay generation enough to drop the
+	// WebSocket. If they don't finish in time, skip them and proceed to blueprint.
+	const SPECIALIST_TIMEOUT_MS = 12000;
+	const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), SPECIALIST_TIMEOUT_MS));
+	const work = Promise.all(needed.map((s) => runOne(s, query, env, inferenceContext)));
+	const raced = await Promise.race([work, timeout]);
+	if (raced === null) {
+		logger.warn('Specialists timed out — proceeding to blueprint without their brief');
+		return '';
+	}
+	const sections = raced.filter((r): r is { title: string; text: string } => !!r);
 	if (sections.length === 0) return '';
 
 	const body = sections.map((s) => `## ${s.title}\n${s.text}`).join('\n\n');
