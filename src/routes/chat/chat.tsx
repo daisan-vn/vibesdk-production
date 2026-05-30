@@ -160,6 +160,7 @@ export default function Chat() {
 		query: userQuery,
 		images: userImages,
 		projectType: urlProjectType as ProjectType,
+		executionMode: searchParams.get('mode') === 'build' ? 'build' : undefined,
 		onDebugMessage: addDebugMessage,
 		onVaultUnlockRequired: handleVaultUnlockRequired,
 	});
@@ -288,8 +289,11 @@ export default function Chat() {
 	const [showTooltip, setShowTooltip] = useState(false);
 
 	// Plan/Build chat mode. Defaults to 'plan' so a new session never modifies the
-	// project before the user reviews a plan.
-	const [chatMode, setChatMode] = useState<ChatMode>('plan');
+	// project before the user reviews a plan — UNLESS the caller explicitly asked
+	// to build (?mode=build, e.g. the homepage "Build" work mode).
+	const [chatMode, setChatMode] = useState<ChatMode>(
+		searchParams.get('mode') === 'build' ? 'build' : 'plan',
+	);
 	const handleModeChange = useCallback((next: ChatMode) => {
 		setChatMode((prev) => {
 			if (prev === 'plan' && next === 'build') {

@@ -94,7 +94,7 @@ export default function Home() {
 	// Discover section should appear only when enough apps are available and loading is done
 	const discoverReady = useMemo(() => !loading && (apps?.length ?? 0) > 5, [loading, apps]);
 
-	const handleCreateApp = (query: string, mode: ProjectType) => {
+	const handleCreateApp = (query: string, mode: ProjectType, executionMode?: 'plan' | 'build') => {
 		if (query.length > MAX_AGENT_QUERY_LENGTH) {
 			toast.error(
 				`Prompt too large (${query.length} characters). Maximum allowed is ${MAX_AGENT_QUERY_LENGTH} characters.`,
@@ -111,7 +111,8 @@ export default function Home() {
 
 		// Encode images as JSON if present
 		const imageParam = images.length > 0 ? `&images=${encodeURIComponent(JSON.stringify(images))}` : '';
-		const intendedUrl = `/chat/new?query=${encodedQuery}&projectType=${encodedMode}${imageParam}`;
+		const modeParam = executionMode ? `&mode=${executionMode}` : '';
+		const intendedUrl = `/chat/new?query=${encodedQuery}&projectType=${encodedMode}${imageParam}${modeParam}`;
 
 		if (
 			!requireAuth({
@@ -176,8 +177,9 @@ export default function Home() {
 			return;
 		}
 
-		// Build mode → the generation pipeline.
-		handleCreateApp(applyWorkModeDirective(mode, text), projectMode);
+		// Build mode → the generation pipeline, in BUILD execution mode so it
+		// actually generates code (not just a plan).
+		handleCreateApp(applyWorkModeDirective(mode, text), projectMode, 'build');
 	};
 
 	const discoverLinkRef = useRef<HTMLDivElement>(null);
