@@ -430,13 +430,28 @@ export default function SettingsPage() {
 			<main className="container mx-auto px-4 py-8 max-w-4xl">
 				<div className="space-y-8">
 					{/* Page Header */}
-					<div>
-						<h1 className="text-4xl font-bold font-[departureMono] text-red-500">
-							SETTINGS
-						</h1>
-						<p className="text-text-tertiary mt-2">
-							Manage your account settings and preferences
-						</p>
+					<div className="relative overflow-hidden rounded-2xl border border-border-primary bg-bg-2/40 px-6 py-7 sm:px-8 sm:py-8">
+						<div
+							aria-hidden
+							className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 opacity-70 blur-2xl"
+							style={{
+								background:
+									'radial-gradient(closest-side, rgba(255,61,0,0.32), rgba(217,70,239,0.16) 45%, transparent 72%)',
+							}}
+						/>
+						<div className="relative flex items-center gap-4">
+							<div className="flex size-12 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/20">
+								<Settings className="size-6" strokeWidth={1.75} />
+							</div>
+							<div>
+								<h1 className="bg-gradient-to-r from-text-primary to-text-primary/70 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
+									Settings
+								</h1>
+								<p className="mt-1 text-sm text-text-tertiary">
+									Manage your account, models, API keys and security.
+								</p>
+							</div>
+						</div>
 					</div>
 
 					{/* Integrations Section */}
