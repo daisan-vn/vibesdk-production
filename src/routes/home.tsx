@@ -1,9 +1,9 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { ArrowRight, Info } from 'react-feather';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Hammer } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/auth-context';
-import { ProjectModeSelector, type ProjectModeOption } from '../components/project-mode-selector';
+import { type ProjectModeOption } from '../components/project-mode-selector';
 import { MAX_AGENT_QUERY_LENGTH, SUPPORTED_IMAGE_MIME_TYPES, type ProjectType } from '@/api-types';
 import { useFeature } from '@/features';
 import { useAuthGuard } from '../hooks/useAuthGuard';
@@ -19,11 +19,19 @@ import { checkCanSendPrompt } from '@/utils/usage-limit-checker';
 import { PromptBox } from '@/components/prompt-box';
 import { MeetDaisanSection, TemplatesTeaser, FinalCTA, LandingFooter } from './home-sections';
 import { ModelQualitySelector } from './chat/components/model-quality-selector';
+import {
+	WorkModeSelector,
+	getWorkMode,
+	applyWorkModeDirective,
+	detectIntent,
+	type WorkModeId,
+} from './work-modes';
 
 export default function Home() {
 	const navigate = useNavigate();
 	const { requireAuth } = useAuthGuard();
 	const [projectMode, setProjectMode] = useState<ProjectType>('app');
+	const [selectedMode, setSelectedMode] = useState<WorkModeId>('consult');
 	const [query, setQuery] = useState('');
 	const { user } = useAuth();
 	const { isLoadingCapabilities, capabilities, getEnabledFeatures } = useFeature();
@@ -48,7 +56,6 @@ export default function Home() {
 		}));
 	}, [capabilities, getEnabledFeatures, isLoadingCapabilities]);
 
-	const showModeSelector = modeOptions.length > 1;
 
 	useEffect(() => {
 		if (isLoadingCapabilities) return;
@@ -73,13 +80,6 @@ export default function Home() {
 		accept: [...SUPPORTED_IMAGE_MIME_TYPES],
 	});
 
-
-	const placeholderPhrases = useMemo(() => [
-		"a showroom dashboard",
-		"a product catalog manager",
-		"an RFQ quote flow",
-		"a B2B pricing portal",
-	], []);
 
 	const {
 		apps,
@@ -142,6 +142,31 @@ export default function Home() {
 		clearImages();
 	};
 
+	const mode = getWorkMode(selectedMode);
+
+	// Work-mode aware submit: advisory modes ask/advise/plan/teach/review/debug
+	// do NOT auto-build — only Build mode produces code. The mode directive is
+	// prepended so the AI (with the Daisan work-mode context) honors it.
+	const handleWorkModeSubmit = () => {
+		const text = query.trim();
+		if (!text) return;
+
+		// Build pre-flight: refuse vague build requests.
+		if (mode.isBuild && text.length < 15) {
+			toast.warning(
+				'Build mode: hãy mô tả rõ hơn — trang/component cần build, framework, hệ thống Daisan nào, dùng mock hay API.',
+			);
+			return;
+		}
+
+		// Soft intent nudge: build-like content while in an advisory mode.
+		const detected = detectIntent(text);
+		if (!mode.isBuild && detected === 'build') {
+			toast.info('Nội dung có vẻ là yêu cầu Build. Chọn chế độ "Build" nếu bạn muốn tạo code.');
+		}
+
+		handleCreateApp(applyWorkModeDirective(mode, text), projectMode);
+	};
 
 	const discoverLinkRef = useRef<HTMLDivElement>(null);
 
@@ -182,17 +207,22 @@ export default function Home() {
 						<h1 className="text-center font-semibold leading-[1.07] tracking-tight text-4xl sm:text-5xl md:text-[3.5rem] w-full mb-3 bg-clip-text text-transparent bg-gradient-to-br from-text-primary via-text-primary to-accent">
 							Build Daisan systems with AI
 						</h1>
-						<p className="text-center text-text-tertiary text-sm sm:text-base max-w-xl mb-7 leading-relaxed">
+						<p className="text-center text-text-tertiary text-sm sm:text-base max-w-xl mb-5 leading-relaxed">
 							Create PIM modules, storefront pages, B2B workflows, showroom
 							dashboards and sales tools — just by chatting with AI.
 						</p>
+
+						{/* Work mode selector — AI tư vấn/hỏi/lập kế hoạch trước, chỉ Build khi chọn Build */}
+						<WorkModeSelector value={selectedMode} onChange={setSelectedMode} className="mb-2.5" />
+						<p className="mb-4 max-w-xl text-center text-xs leading-relaxed text-text-tertiary/80">
+							{mode.behaviorNote}
+						</p>
+
 						<PromptBox
 							value={query}
 							onChange={setQuery}
-							onSubmit={() => handleCreateApp(query, projectMode)}
-							placeholder="Create a "
-							animatedPlaceholder
-							placeholderPhrases={placeholderPhrases}
+							onSubmit={handleWorkModeSubmit}
+							placeholder={mode.placeholder}
 							images={images}
 							onAddImages={addImages}
 							onRemoveImage={removeImage}
@@ -206,20 +236,41 @@ export default function Home() {
 							submitIcon={user && usageLimitsLoading ? <Loader2 className="animate-spin" /> : <ArrowRight />}
 							leftActions={
 								<div className="flex items-center gap-2">
-									{showModeSelector && (
-										<ProjectModeSelector
-											value={projectMode}
-											onChange={setProjectMode}
-											modes={modeOptions}
-										/>
-									)}
 									<ModelQualitySelector />
 								</div>
 							}
 						/>
 
+						{/* Build-mode warning */}
+						{mode.isBuild && (
+							<div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
+								<Hammer className="size-3.5 shrink-0" />
+								Build mode sẽ tạo code/giao diện. AI sẽ chạy pre-flight và hỏi lại nếu thiếu thông tin.
+							</div>
+						)}
+
+						{/* Quick examples theo mode */}
+						<div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+							{mode.examples.map((ex) => (
+								<button
+									key={ex}
+									type="button"
+									onClick={() => setQuery(ex)}
+									className="rounded-full border border-border-primary bg-bg-2/40 px-3 py-1 text-xs text-text-tertiary transition-colors hover:border-accent/40 hover:text-text-primary"
+								>
+									{ex}
+								</button>
+							))}
+						</div>
+
+						{/* Advisory tagline */}
+						<p className="mt-5 max-w-lg text-center text-xs leading-relaxed text-text-tertiary/70">
+							Daisan.ai sẽ tư vấn trước, lập kế hoạch khi cần, và chỉ build khi bạn chọn{' '}
+							<span className="font-medium text-accent">Build</span> hoặc xác nhận rõ ràng.
+						</p>
+
 						{/* Daisan use-cases */}
-						<div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-text-tertiary">
+						<div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-text-tertiary">
 							{['PIM', 'DaisanStore', 'B2B', 'B2C', 'Showroom', 'Lead/RFQ', 'Deployment'].map((u, i) => (
 								<span key={u} className="flex items-center gap-3">
 									{i > 0 && <span className="size-1 rounded-full bg-text-tertiary/40" />}
