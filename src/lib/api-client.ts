@@ -1064,6 +1064,16 @@ class ApiClient {
 		);
 	}
 
+	async advisoryChat(
+		prompt: string,
+		history?: { role: 'user' | 'assistant'; content: string }[],
+	): Promise<ApiResponse<{ response: string }>> {
+		return this.request<{ response: string }>(`/api/advisory`, {
+			method: 'POST',
+			body: history ? { prompt, history } : { prompt },
+		});
+	}
+
 	async applyModelPreset(
 		preset: 'fast' | 'balanced' | 'max' | 'custom',
 		model?: string,

@@ -23,6 +23,7 @@ import { DeploymentFailedPage, DomainNotMappedPage, AppNotFoundPage } from './ro
 import ProjectDetailPage from './routes/projects/detail';
 import PlansPage from './routes/plans';
 import PlanDetailPage from './routes/plans/detail';
+import AdvisoryPage from './routes/advisory';
 import AppView from './routes/app';
 import DiscoverPage from './routes/discover';
 import { ProtectedRoute } from './routes/protected-route';
@@ -91,6 +92,10 @@ const routes = [
 			{
 				path: 'plans/:planId',
 				element: React.createElement(ProtectedRoute, { children: React.createElement(PlanDetailPage) }),
+			},
+			{
+				path: 'advisory',
+				element: React.createElement(ProtectedRoute, { children: React.createElement(AdvisoryPage) }),
 			},
 			{
 				path: 'app/:id',

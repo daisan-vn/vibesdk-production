@@ -165,6 +165,18 @@ export default function Home() {
 			toast.info('Nội dung có vẻ là yêu cầu Build. Chọn chế độ "Build" nếu bạn muốn tạo code.');
 		}
 
+		// Advisory modes (Hỏi/Tư vấn/Kế hoạch/Học/Review/Sửa lỗi) → conversational
+		// advisory route. They do NOT bootstrap a project or generate code.
+		if (!mode.isBuild) {
+			const intendedUrl = `/advisory?q=${encodeURIComponent(text)}&mode=${mode.id}`;
+			if (!requireAuth({ requireFullAuth: true, actionContext: 'to chat with Daisan AI', intendedUrl })) {
+				return;
+			}
+			navigate(intendedUrl);
+			return;
+		}
+
+		// Build mode → the generation pipeline.
 		handleCreateApp(applyWorkModeDirective(mode, text), projectMode);
 	};
 

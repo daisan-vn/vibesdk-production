@@ -9,6 +9,7 @@ import { setupModelProviderRoutes } from './modelProviderRoutes';
 import { setupGitHubExporterRoutes } from './githubExporterRoutes';
 import { setupCodegenRoutes } from './codegenRoutes';
 import { setupPlanRoutes } from './planRoutes';
+import { setupAdvisoryRoutes } from './advisoryRoutes';
 import { setupScreenshotRoutes } from './imagesRoutes';
 import { setupSentryRoutes } from './sentryRoutes';
 import { setupCapabilitiesRoutes } from './capabilitiesRoutes';
@@ -50,6 +51,9 @@ export function setupRoutes(app: Hono<AppEnv>): void {
 
     // Plan-store routes (implementation plans)
     setupPlanRoutes(app);
+
+    // Advisory routes (non-Build work modes: ask/consult/plan/learn/review)
+    setupAdvisoryRoutes(app);
     
     // User dashboard and profile routes
     setupUserRoutes(app);
