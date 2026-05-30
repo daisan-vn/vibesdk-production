@@ -17,6 +17,7 @@ import { toast } from 'sonner';
 import { useLimitsContext } from '@/contexts/limits-context';
 import { checkCanSendPrompt } from '@/utils/usage-limit-checker';
 import { PromptBox } from '@/components/prompt-box';
+import { MeetDaisanSection, TemplatesTeaser, FinalCTA, LandingFooter } from './home-sections';
 
 export default function Home() {
 	const navigate = useNavigate();
@@ -282,6 +283,12 @@ export default function Home() {
 					)}
 				</AnimatePresence>
 			</LayoutGroup>
+
+			{/* Marketing sections */}
+			<MeetDaisanSection />
+			<TemplatesTeaser onUse={(prompt) => handleCreateApp(prompt, projectMode)} />
+			<FinalCTA onStart={() => window.scrollTo({ top: 0, behavior: 'smooth' })} />
+			<LandingFooter />
 
 			{/* Nudge towards Discover */}
 			{user && <CurvedArrow sourceRef={discoverLinkRef} target={{ x: 50, y: window.innerHeight - 60 }} />}
