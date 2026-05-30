@@ -1,4 +1,6 @@
 import { Sparkles, ClipboardList, Rocket, ArrowRight } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { TEMPLATES } from './templates/data';
 
 /* ----------------------------- Meet Daisan AI ----------------------------- */
 
@@ -52,18 +54,8 @@ export function MeetDaisanSection() {
 
 /* ---------------------------- Templates teaser ---------------------------- */
 
-const TEMPLATES: { cat: string; title: string; desc: string; prompt: string }[] = [
-	{ cat: 'Storefront', title: 'DaisanStore Homepage', desc: 'Hero, featured collections, promotions.', prompt: 'Build a modern DaisanStore storefront homepage with a hero, featured collections grid, trending products and promotional banners.' },
-	{ cat: 'PIM', title: 'Product Catalog Manager', desc: 'Filters, grid/list, bulk edit.', prompt: 'Create a PIM product catalog manager with an advanced filter sidebar, grid/list toggle, sorting and bulk edit.' },
-	{ cat: 'Storefront', title: 'Tile Product Detail', desc: 'Gallery, specs, add to quote.', prompt: 'Build a premium tile product detail page with an image gallery, specifications, related products and an add-to-quote bar.' },
-	{ cat: 'Showroom', title: 'Showroom Locator', desc: 'Map, list, contact details.', prompt: 'Create a showroom locator with a searchable list, map, opening hours and contact details.' },
-	{ cat: 'Lead/RFQ', title: 'RFQ Quote Cart', desc: 'Add products, form, submit.', prompt: 'Build an RFQ quote cart flow: add products to a quote, customer details form, and submit a request that creates a lead.' },
-	{ cat: 'B2B', title: 'B2B Pricing Portal', desc: 'Dealer tiers, pricing rules.', prompt: 'Create a B2B pricing portal with dealer tiers, contract pricing rules and a price preview.' },
-	{ cat: 'Admin', title: 'Dealer Dashboard', desc: 'Orders, RFQs, account status.', prompt: 'Build a dealer dashboard with orders, RFQ status, account information and quick actions.' },
-	{ cat: 'SEO', title: 'Local SEO Landing', desc: 'City landing for a showroom.', prompt: 'Create a local SEO landing page for a tile showroom in a specific city, with offers and a contact form.' },
-];
-
 export function TemplatesTeaser({ onUse }: { onUse: (prompt: string) => void }) {
+	const navigate = useNavigate();
 	return (
 		<section className="w-full max-w-6xl mx-auto px-6 py-16 z-10">
 			<div className="mb-8 flex flex-wrap items-end justify-between gap-3">
@@ -73,9 +65,15 @@ export function TemplatesTeaser({ onUse }: { onUse: (prompt: string) => void }) 
 					</h2>
 					<p className="mt-2 text-text-tertiary">Production-ready starting points for commerce & operations.</p>
 				</div>
+				<button
+					onClick={() => navigate('/templates')}
+					className="inline-flex items-center gap-1 text-sm font-medium text-text-secondary transition-colors hover:text-accent"
+				>
+					Browse all templates <ArrowRight className="size-4" />
+				</button>
 			</div>
 			<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-				{TEMPLATES.map((t) => (
+				{TEMPLATES.slice(0, 8).map((t) => (
 					<button
 						key={t.title}
 						type="button"

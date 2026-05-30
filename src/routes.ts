@@ -8,6 +8,8 @@ import Profile from './routes/profile';
 import Settings from './routes/settings/index';
 import AppsPage from './routes/apps';
 import DeploymentsPage from './routes/deployments';
+import TemplatesPage from './routes/templates';
+import ConnectorsPage from './routes/connectors';
 import AppView from './routes/app';
 import DiscoverPage from './routes/discover';
 import { ProtectedRoute } from './routes/protected-route';
@@ -40,6 +42,14 @@ const routes = [
 			{
 				path: 'deployments',
 				element: React.createElement(ProtectedRoute, { children: React.createElement(DeploymentsPage) }),
+			},
+			{
+				path: 'templates',
+				Component: TemplatesPage,
+			},
+			{
+				path: 'connectors',
+				element: React.createElement(ProtectedRoute, { children: React.createElement(ConnectorsPage) }),
 			},
 			{
 				path: 'app/:id',

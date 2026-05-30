@@ -10,6 +10,8 @@ import {
 	Lock,
 	Users2,
 	Bookmark,
+	LayoutTemplate,
+	Plug,
 	// LayoutGrid,
 	Compass,
 } from 'lucide-react';
@@ -581,6 +583,34 @@ export function AppSidebar() {
 									{!isCollapsed && (
 										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
 											Deployments
+										</span>
+									)}
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									onClick={() => navigate('/templates')}
+									tooltip="Templates"
+									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
+								>
+									<LayoutTemplate className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
+									{!isCollapsed && (
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
+											Templates
+										</span>
+									)}
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									onClick={() => navigate('/connectors')}
+									tooltip="Connectors"
+									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
+								>
+									<Plug className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
+									{!isCollapsed && (
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
+											Connectors
 										</span>
 									)}
 								</SidebarMenuButton>
