@@ -144,8 +144,9 @@ export class AdvisoryController extends BaseController {
 		const writer = writable.getWriter();
 
 		const run = (async () => {
+			let streamedAny = false;
 			try {
-				await executeInference({
+				const result = await executeInference({
 					env,
 					messages: prepared.messages,
 					agentActionName: 'conversationalResponse',
@@ -155,14 +156,31 @@ export class AdvisoryController extends BaseController {
 					stream: {
 						chunk_size: 48,
 						onChunk: (chunk: string) => {
+							if (chunk) streamedAny = true;
 							void writer.write(encoder.encode(chunk));
 						},
 					},
 				});
+
+				// Fallback: some models/providers return the full answer without
+				// firing onChunk. In that case, emit the final string so the client
+				// never ends up with an empty response.
+				if (!streamedAny) {
+					const text = result && typeof result === 'object' && 'string' in result ? (result.string as string) : '';
+					await writer.write(
+						encoder.encode(text || 'Xin lỗi, tôi chưa tạo được câu trả lời. Vui lòng thử lại.'),
+					);
+				}
 			} catch (error) {
 				this.logger.error('Advisory stream error', error);
 				try {
-					await writer.write(encoder.encode('\n\n[Lỗi: không tạo được câu trả lời. Vui lòng thử lại.]'));
+					await writer.write(
+						encoder.encode(
+							streamedAny
+								? '\n\n[Lỗi: phản hồi bị gián đoạn. Vui lòng thử lại.]'
+								: 'Xin lỗi, tôi gặp lỗi khi tạo câu trả lời. Vui lòng thử lại.',
+						),
+					);
 				} catch {
 					/* ignore */
 				}
