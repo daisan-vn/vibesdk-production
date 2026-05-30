@@ -20,6 +20,7 @@ import CommunityPage from './routes/community';
 import OnboardingPage from './routes/onboarding';
 import TemplateDetailPage from './routes/templates/detail';
 import { DeploymentFailedPage, DomainNotMappedPage, AppNotFoundPage } from './routes/errors';
+import ProjectDetailPage from './routes/projects/detail';
 import AppView from './routes/app';
 import DiscoverPage from './routes/discover';
 import { ProtectedRoute } from './routes/protected-route';
@@ -73,6 +74,14 @@ const routes = [
 			{ path: 'deployment-failed', Component: DeploymentFailedPage },
 			{ path: 'domain-not-mapped', Component: DomainNotMappedPage },
 			{ path: 'app-not-found', Component: AppNotFoundPage },
+			{
+				path: 'projects',
+				element: React.createElement(ProtectedRoute, { children: React.createElement(AppsPage) }),
+			},
+			{
+				path: 'projects/:id',
+				element: React.createElement(ProtectedRoute, { children: React.createElement(ProjectDetailPage) }),
+			},
 			{
 				path: 'app/:id',
 				Component: AppView,
