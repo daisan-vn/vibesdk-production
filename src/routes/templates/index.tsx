@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { LayoutTemplate, ArrowRight, Search } from 'lucide-react';
 import { TEMPLATES, TEMPLATE_CATEGORIES } from './data';
+import { slugify } from './detail';
 
 export default function TemplatesPage() {
 	const navigate = useNavigate();
@@ -22,8 +23,8 @@ export default function TemplatesPage() {
 		});
 	}, [activeCat, query]);
 
-	const useTemplate = (prompt: string) => {
-		navigate(`/chat/new?query=${encodeURIComponent(prompt)}&projectType=app`);
+	const openTemplate = (title: string) => {
+		navigate(`/templates/${slugify(title)}`);
 	};
 
 	const cats = ['All', ...TEMPLATE_CATEGORIES];
@@ -100,7 +101,7 @@ export default function TemplatesPage() {
 								<button
 									key={t.title}
 									type="button"
-									onClick={() => useTemplate(t.prompt)}
+									onClick={() => openTemplate(t.title)}
 									className="group flex flex-col rounded-2xl border border-border-primary bg-bg-2/40 p-5 text-left transition-all hover:border-accent/50 hover:shadow-lg hover:shadow-accent/5"
 								>
 									<div className="mb-4 h-28 rounded-xl border border-border-primary/60 bg-gradient-to-br from-accent/15 via-accent/5 to-transparent transition-transform group-hover:scale-[1.02]" />

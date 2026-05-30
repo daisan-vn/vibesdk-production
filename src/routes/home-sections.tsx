@@ -129,11 +129,32 @@ export function FinalCTA({ onStart }: { onStart: () => void }) {
 const FOOTER_COLS: { title: string; links: string[] }[] = [
 	{ title: 'Product', links: ['AI Studio', 'Templates', 'Connectors', 'Deployments'] },
 	{ title: 'Solutions', links: ['PIM', 'DaisanStore', 'B2B', 'B2C', 'Showroom', 'Lead/RFQ'] },
-	{ title: 'Resources', links: ['Docs', 'Guides', 'Status', 'Support'] },
-	{ title: 'Company', links: ['About', 'Security', 'Contact'] },
+	{ title: 'Resources', links: ['Docs', 'Guides', 'Pricing', 'Support'] },
+	{ title: 'Company', links: ['Community', 'Security', 'Enterprise'] },
 ];
 
+const FOOTER_ROUTES: Record<string, string> = {
+	'AI Studio': '/',
+	Templates: '/templates',
+	Connectors: '/connectors',
+	Deployments: '/deployments',
+	PIM: '/solutions/pim',
+	DaisanStore: '/solutions/storefront',
+	B2B: '/solutions/b2b',
+	B2C: '/solutions/b2c',
+	Showroom: '/solutions/showroom',
+	'Lead/RFQ': '/solutions/lead-rfq',
+	Docs: '/resources',
+	Guides: '/resources',
+	Pricing: '/pricing',
+	Support: '/resources',
+	Community: '/community',
+	Security: '/security',
+	Enterprise: '/enterprise',
+};
+
 export function LandingFooter() {
+	const navigate = useNavigate();
 	return (
 		<footer className="z-10 mt-10 w-full border-t border-border-primary">
 			<div className="mx-auto grid max-w-6xl grid-cols-2 gap-8 px-6 py-12 md:grid-cols-5">
@@ -148,7 +169,11 @@ export function LandingFooter() {
 						<p className="mb-3 text-xs font-semibold text-text-secondary">{col.title}</p>
 						<ul className="space-y-2">
 							{col.links.map((l) => (
-								<li key={l} className="cursor-pointer text-xs text-text-tertiary transition-colors hover:text-text-primary">
+								<li
+									key={l}
+									onClick={() => FOOTER_ROUTES[l] && navigate(FOOTER_ROUTES[l])}
+									className="cursor-pointer text-xs text-text-tertiary transition-colors hover:text-text-primary"
+								>
 									{l}
 								</li>
 							))}
