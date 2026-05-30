@@ -4,6 +4,8 @@ import { RouteContext } from '../../types/route-context';
 import { ModelConfigService } from '../../../database';
 import { generateId } from '../../../utils/idGenerator';
 import { executeInference } from '../../../agents/inferutils/infer';
+import { infer } from '../../../agents/inferutils/core';
+import { AIModels } from '../../../agents/inferutils/config.types';
 import { createSystemMessage, createUserMessage } from '../../../agents/inferutils/common';
 import { checkUsageAndBalance, getUserGateway } from '../../../services/rate-limit/usageChecker';
 import { readTokenCookie } from '../../../utils/oauthCookie';
@@ -145,14 +147,26 @@ export class AdvisoryController extends BaseController {
 
 		const run = (async () => {
 			let streamedAny = false;
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const ctx = prepared.inferenceContext as any;
 			try {
-				const result = await executeInference({
+				// Call infer() directly (not executeInference) so a real error is
+				// surfaced instead of being swallowed into a null result. Use a known
+				// stable model for the advisory chat.
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const result: any = await infer({
 					env,
+					metadata: ctx.metadata,
 					messages: prepared.messages,
-					agentActionName: 'conversationalResponse',
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					context: prepared.inferenceContext as any,
 					maxTokens: 6000,
+					modelName: AIModels.GEMINI_2_5_FLASH,
+					actionKey: 'conversationalResponse',
+					temperature: 0.4,
+					runtimeOverrides: ctx.runtimeOverrides,
+					onUsageConsumed: ctx.onUsageConsumed,
+					shouldUseUserKey: ctx.shouldUseUserKey,
+					userApiToken: ctx.userApiToken,
+					userGateway: ctx.userGateway,
 					stream: {
 						chunk_size: 48,
 						onChunk: (chunk: string) => {
@@ -160,11 +174,9 @@ export class AdvisoryController extends BaseController {
 							void writer.write(encoder.encode(chunk));
 						},
 					},
-				});
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				} as any);
 
-				// Fallback: some models/providers return the full answer without
-				// firing onChunk. In that case, emit the final string so the client
-				// never ends up with an empty response.
 				if (!streamedAny) {
 					const text = result && typeof result === 'object' && 'string' in result ? (result.string as string) : '';
 					await writer.write(
@@ -172,13 +184,14 @@ export class AdvisoryController extends BaseController {
 					);
 				}
 			} catch (error) {
-				this.logger.error('Advisory stream error', error);
+				const msg = error instanceof Error ? error.message : String(error);
+				this.logger.error('Advisory infer error', error);
 				try {
 					await writer.write(
 						encoder.encode(
 							streamedAny
-								? '\n\n[Lỗi: phản hồi bị gián đoạn. Vui lòng thử lại.]'
-								: 'Xin lỗi, tôi gặp lỗi khi tạo câu trả lời. Vui lòng thử lại.',
+								? `\n\n[Lỗi khi tạo câu trả lời: ${msg}]`
+								: `Xin lỗi, có lỗi khi tạo câu trả lời: ${msg}`,
 						),
 					);
 				} catch {
