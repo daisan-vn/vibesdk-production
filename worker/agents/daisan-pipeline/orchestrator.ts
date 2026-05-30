@@ -17,7 +17,10 @@ import { executeInference } from '../inferutils/infer';
 import { createSystemMessage, createUserMessage } from '../inferutils/common';
 import { AIModels } from '../inferutils/config.types';
 import { createLogger } from '../../logger';
+import { PlanService } from '../../database';
 import { SPECIALISTS, type Specialist } from './agents/specialists';
+
+const SPECIALIST_PLAN_TITLE = '🤖 Thiết kế từ chuyên gia AI (Daisan)';
 
 const logger = createLogger('DaisanSpecialistOrchestrator');
 
@@ -88,4 +91,49 @@ export async function runSpecialistBrief(
 
 	const body = sections.map((s) => `## ${s.title}\n${s.text}`).join('\n\n');
 	return `<DAISAN_SPECIALIST_DESIGN>\nCác chuyên gia Daisan đã phác thảo thiết kế dưới đây — hãy TÍCH HỢP vào blueprint/app (data model, search, nội dung/SEO) cho phù hợp:\n\n${body}\n</DAISAN_SPECIALIST_DESIGN>`;
+}
+
+/**
+ * NON-BLOCKING entry point: run the specialists and persist their aggregated
+ * design as a reference Plan linked to the app. Call this fire-and-forget
+ * (void) from the generation flow — it never blocks generation or the WebSocket.
+ * Idempotent: updates the existing specialist plan for the app if present.
+ */
+export async function runSpecialistsToPlan(
+	query: string,
+	env: Env,
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	inferenceContext: any,
+	userId: string | undefined,
+	appId: string | undefined,
+): Promise<void> {
+	try {
+		if (!isEnabled(env) || !userId || !appId) return;
+		const sectionsBrief = await runSpecialistBrief(query, env, inferenceContext);
+		if (!sectionsBrief) return;
+
+		// Store the raw design (without the wrapping tag) as the plan content.
+		const design = sectionsBrief.replace(/^<DAISAN_SPECIALIST_DESIGN>[\s\S]*?\n\n/, '').replace(/\n<\/DAISAN_SPECIALIST_DESIGN>$/, '');
+		const content = { implementationSteps: design.split(/\n(?=## )/).map((s) => s.trim()).filter(Boolean) };
+
+		const planService = new PlanService(env);
+		const existing = (await planService.listPlans(userId, { appId })).find((p) => p.title === SPECIALIST_PLAN_TITLE);
+		if (existing) {
+			await planService.updatePlan(existing.id, userId, {
+				goal: 'Bản phác thảo Database/Search/Content/UI/QA do các agent chuyên gia Daisan tạo (tham khảo khi build/refine).',
+				content,
+			});
+		} else {
+			await planService.createPlan({
+				userId,
+				appId,
+				title: SPECIALIST_PLAN_TITLE,
+				goal: 'Bản phác thảo Database/Search/Content/UI/QA do các agent chuyên gia Daisan tạo (tham khảo khi build/refine).',
+				content,
+			});
+		}
+		logger.info('Persisted Daisan specialist design as a plan', { appId });
+	} catch (e) {
+		logger.warn('runSpecialistsToPlan failed (non-fatal)', { error: e });
+	}
 }

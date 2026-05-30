@@ -17,7 +17,6 @@ import { PhaseGenerationOperation } from '../../operations/PhaseGeneration';
 import { FastCodeFixerOperation } from '../../operations/PostPhaseCodeFixer';
 import { customizePackageJson, customizeTemplateFiles, generateProjectName } from '../../utils/templateCustomizer';
 import { generateBlueprint } from '../../planning/blueprint';
-import { runSpecialistBrief } from '../../daisan-pipeline/orchestrator';
 import { RateLimitExceededError } from 'shared/types/errors';
 import {  ImageAttachment, type ProcessedImageAttachment } from '../../../types/image-attachment';
 import { OperationOptions } from '../../operations/common';
@@ -75,11 +74,9 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         this.logger.info('Generating blueprint', { query, queryLength: query.length, imagesCount: initArgs.images?.length || 0 });
         this.logger.info(`Using language: ${language}, frameworks: ${frameworks ? frameworks.join(", ") : "none"}`);
         
-        // P2/P3: run Daisan specialists (Database/Search/Content) and fold their
-        // design brief into the blueprint. Flag-gated + conditional + best-effort
-        // (returns '' when disabled or not relevant). See daisan-pipeline/orchestrator.
-        const specialistBrief = await runSpecialistBrief(query, this.env, inferenceContext);
-
+        // P2-P4: Daisan specialists run NON-BLOCKING (fire-and-forget) elsewhere
+        // (see codingAgent.initialize → runSpecialistsToPlan) so they never delay
+        // the blueprint / drop the WebSocket. They persist a reference plan instead.
         const blueprint = await generateBlueprint({
             env: this.env,
             inferenceContext,
@@ -90,7 +87,6 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             templateMetaInfo: templateInfo?.selection,
             images: initArgs.images,
             projectType: this.projectType,
-            specialistBrief,
             stream: {
                 chunk_size: 256,
                 onChunk: (chunk) => {

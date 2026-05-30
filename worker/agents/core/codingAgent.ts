@@ -23,6 +23,7 @@ import { PreviewType, TemplateDetails } from "worker/services/sandbox/sandboxTyp
 import { WebSocketMessageResponses } from "../constants";
 import { AppService, ModelConfigService, PlanService } from "worker/database";
 import type { PlanContent } from "worker/database/schema";
+import { runSpecialistsToPlan } from "../daisan-pipeline/orchestrator";
 import { ConversationMessage, ConversationState } from "../inferutils/common";
 import { ImageAttachment } from "worker/types/image-attachment";
 import { RateLimitExceededError } from "shared/types/errors";
@@ -206,6 +207,17 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
             inferenceContext.metadata.agentId,
             inferenceContext.metadata.userId,
             initArgs.query,
+        );
+
+        // NON-BLOCKING: run Daisan specialists in the background and persist their
+        // design as a reference plan. Fire-and-forget — never awaited, so it can
+        // NEVER delay the blueprint or drop the WebSocket. Flag-gated + bounded.
+        void runSpecialistsToPlan(
+            initArgs.query,
+            this.env,
+            inferenceContext,
+            inferenceContext.metadata.userId,
+            inferenceContext.metadata.agentId,
         );
 
         // Let behavior handle all state initialization (blueprint, projectName, etc.)
