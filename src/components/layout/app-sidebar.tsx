@@ -2,6 +2,7 @@ import React from 'react';
 import {
 	Users,
 	Settings,
+	Rocket,
 	Plus,
 	ChevronRight,
 	Search,
@@ -570,6 +571,20 @@ export function AppSidebar() {
 				<SidebarFooter>
 					{user && (
 						<SidebarMenu>
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									onClick={() => navigate('/deployments')}
+									tooltip="Deployments"
+									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
+								>
+									<Rocket className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
+									{!isCollapsed && (
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
+											Deployments
+										</span>
+									)}
+								</SidebarMenuButton>
+							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									id="discover-link"
