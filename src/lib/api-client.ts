@@ -1065,11 +1065,12 @@ class ApiClient {
 	}
 
 	async applyModelPreset(
-		preset: 'fast' | 'balanced' | 'max',
+		preset: 'fast' | 'balanced' | 'max' | 'custom',
+		model?: string,
 	): Promise<ApiResponse<{ preset: string }>> {
 		return this.request<{ preset: string }>(`/api/model-configs/preset`, {
 			method: 'POST',
-			body: { preset },
+			body: model ? { preset, model } : { preset },
 		});
 	}
 

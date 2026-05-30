@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Zap, Gauge, Sparkles, ChevronDown, Check, Loader2 } from 'lucide-react';
+import { Zap, Gauge, Sparkles, ChevronDown, Check, Loader2, Boxes } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
@@ -7,73 +7,94 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuSub,
+	DropdownMenuSubContent,
+	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { cn } from '@/lib/utils';
 
-export type QualityPreset = 'fast' | 'balanced' | 'max';
+export type QualityPreset = 'fast' | 'balanced' | 'max' | 'custom';
 
-const PRESETS: { id: QualityPreset; label: string; icon: LucideIcon; desc: string }[] = [
-	{ id: 'fast', label: 'Fast', icon: Zap, desc: 'Fastest & cheapest — Gemini Flash. Best for quick drafts.' },
+const PRESETS: { id: Exclude<QualityPreset, 'custom'>; label: string; icon: LucideIcon; desc: string }[] = [
+	{ id: 'fast', label: 'Fast', icon: Zap, desc: 'Fastest & cheapest — Gemini Flash. Quick drafts.' },
 	{ id: 'balanced', label: 'Balanced', icon: Gauge, desc: 'Recommended default. Good quality at good speed.' },
-	{ id: 'max', label: 'Max quality', icon: Sparkles, desc: 'Best results — Gemini Pro for planning & first build. Slower.' },
+	{ id: 'max', label: 'Max quality', icon: Sparkles, desc: 'Best results — Claude 4.5 Sonnet for planning & build. Slower.' },
 ];
 
-const STORAGE_KEY = 'daisan.modelQuality';
+// Curated specific models for "More models" (applied to planning + build phases).
+const MORE_MODELS: { id: string; name: string; hint: string }[] = [
+	{ id: 'anthropic/claude-sonnet-4-5', name: 'Claude 4.5 Sonnet', hint: 'Best for coding' },
+	{ id: 'anthropic/claude-opus-4-5', name: 'Claude 4.5 Opus', hint: 'Most capable' },
+	{ id: 'google-ai-studio/gemini-3-pro-preview', name: 'Gemini 3 Pro', hint: 'Strong reasoning' },
+	{ id: 'google-ai-studio/gemini-3-flash-preview', name: 'Gemini 3 Flash', hint: 'Fast & cheap' },
+	{ id: 'openai/gpt-5.2', name: 'GPT-5.2', hint: 'OpenAI flagship' },
+];
 
-/**
- * v0-style model/quality selector for the chat composer. Applies a one-click
- * preset to the user's model configs (planning + implementation phases).
- */
+const KEY_PRESET = 'daisan.modelQuality';
+const KEY_MODEL = 'daisan.modelQuality.model';
+
 export function ModelQualitySelector({ disabled, className }: { disabled?: boolean; className?: string }) {
 	const [preset, setPreset] = useState<QualityPreset>('balanced');
+	const [customModel, setCustomModel] = useState<string | null>(null);
 	const [applying, setApplying] = useState(false);
 
 	useEffect(() => {
 		try {
-			const saved = localStorage.getItem(STORAGE_KEY) as QualityPreset | null;
-			if (saved === 'fast' || saved === 'balanced' || saved === 'max') setPreset(saved);
+			const savedPreset = localStorage.getItem(KEY_PRESET) as QualityPreset | null;
+			if (savedPreset && ['fast', 'balanced', 'max', 'custom'].includes(savedPreset)) setPreset(savedPreset);
+			const savedModel = localStorage.getItem(KEY_MODEL);
+			if (savedModel) setCustomModel(savedModel);
 		} catch {
 			/* ignore */
 		}
 	}, []);
 
-	const choose = async (next: QualityPreset) => {
-		if (next === preset || applying) return;
-		const prev = preset;
+	const apply = async (next: QualityPreset, model?: string, label?: string) => {
+		if (applying) return;
+		const prevPreset = preset;
+		const prevModel = customModel;
 		setPreset(next);
+		setCustomModel(next === 'custom' ? model ?? null : null);
 		setApplying(true);
 		try {
-			const res = await apiClient.applyModelPreset(next);
+			const res = await apiClient.applyModelPreset(next, model);
 			if (res.success) {
 				try {
-					localStorage.setItem(STORAGE_KEY, next);
+					localStorage.setItem(KEY_PRESET, next);
+					if (next === 'custom' && model) localStorage.setItem(KEY_MODEL, model);
+					else localStorage.removeItem(KEY_MODEL);
 				} catch {
 					/* ignore */
 				}
-				const label = PRESETS.find((p) => p.id === next)?.label ?? next;
-				toast.success(`AI quality: ${label}`);
+				toast.success(`AI: ${label ?? next}`);
 			} else {
-				setPreset(prev);
-				toast.error(res.error?.message || 'Failed to change AI quality');
+				setPreset(prevPreset);
+				setCustomModel(prevModel);
+				toast.error(res.error?.message || 'Failed to change AI model');
 			}
 		} catch {
-			setPreset(prev);
-			toast.error('Failed to change AI quality');
+			setPreset(prevPreset);
+			setCustomModel(prevModel);
+			toast.error('Failed to change AI model');
 		} finally {
 			setApplying(false);
 		}
 	};
 
-	const current = PRESETS.find((p) => p.id === preset) ?? PRESETS[1];
-	const CurrentIcon = current.icon;
+	const currentPreset = PRESETS.find((p) => p.id === preset);
+	const currentModel = MORE_MODELS.find((m) => m.id === customModel);
+	const triggerLabel =
+		preset === 'custom' ? currentModel?.name ?? 'Custom model' : currentPreset?.label ?? 'Balanced';
+	const TriggerIcon = preset === 'custom' ? Boxes : currentPreset?.icon ?? Gauge;
 
 	return (
 		<DropdownMenu>
 			<DropdownMenuTrigger asChild disabled={disabled}>
 				<button
 					type="button"
-					aria-label="AI quality"
+					aria-label="AI model"
 					className={cn(
 						'inline-flex h-7 items-center gap-1.5 rounded-md border border-border-primary bg-bg-2/60 px-2 text-xs text-text-secondary transition-colors hover:text-text-primary disabled:opacity-60',
 						className,
@@ -82,9 +103,9 @@ export function ModelQualitySelector({ disabled, className }: { disabled?: boole
 					{applying ? (
 						<Loader2 className="size-3.5 animate-spin text-accent" />
 					) : (
-						<CurrentIcon className="size-3.5 text-accent" />
+						<TriggerIcon className="size-3.5 text-accent" />
 					)}
-					<span className="hidden sm:inline">{current.label}</span>
+					<span className="hidden max-w-[120px] truncate sm:inline">{triggerLabel}</span>
 					<ChevronDown className="size-3 opacity-60" />
 				</button>
 			</DropdownMenuTrigger>
@@ -94,13 +115,13 @@ export function ModelQualitySelector({ disabled, className }: { disabled?: boole
 				</div>
 				{PRESETS.map((p) => {
 					const Icon = p.icon;
-					const active = p.id === preset;
+					const active = preset === p.id;
 					return (
 						<DropdownMenuItem
 							key={p.id}
 							onSelect={(e) => {
 								e.preventDefault();
-								choose(p.id);
+								apply(p.id, undefined, p.label);
 							}}
 							className="flex cursor-pointer items-start gap-2.5 py-2"
 						>
@@ -115,6 +136,42 @@ export function ModelQualitySelector({ disabled, className }: { disabled?: boole
 						</DropdownMenuItem>
 					);
 				})}
+
+				<DropdownMenuSeparator />
+
+				<DropdownMenuSub>
+					<DropdownMenuSubTrigger className="gap-2.5">
+						<Boxes className={cn('size-4', preset === 'custom' ? 'text-accent' : 'text-text-tertiary')} />
+						<span className="flex-1 text-sm">More models</span>
+					</DropdownMenuSubTrigger>
+					<DropdownMenuSubContent className="w-60">
+						<div className="px-2 py-1.5 text-[11px] text-text-tertiary">
+							Use a specific model for planning & build
+						</div>
+						{MORE_MODELS.map((m) => {
+							const active = preset === 'custom' && customModel === m.id;
+							return (
+								<DropdownMenuItem
+									key={m.id}
+									onSelect={(e) => {
+										e.preventDefault();
+										apply('custom', m.id, m.name);
+									}}
+									className="flex cursor-pointer items-center gap-2 py-2"
+								>
+									<div className="min-w-0 flex-1">
+										<div className="flex items-center gap-1.5">
+											<span className="text-sm font-medium text-text-primary">{m.name}</span>
+											{active && <Check className="size-3.5 text-accent" />}
+										</div>
+										<p className="text-xs text-text-tertiary">{m.hint}</p>
+									</div>
+								</DropdownMenuItem>
+							);
+						})}
+					</DropdownMenuSubContent>
+				</DropdownMenuSub>
+
 				<div className="border-t border-border-primary/60 px-2 py-1.5 text-[11px] text-text-tertiary">
 					Applies to planning & build. Tune per-step in Settings.
 				</div>

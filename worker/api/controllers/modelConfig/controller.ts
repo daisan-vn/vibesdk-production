@@ -352,19 +352,29 @@ export class ModelConfigController extends BaseController {
     static async applyPreset(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<{ preset: string }>>> {
         try {
             const user = context.user!;
-            let body: { preset?: string };
+            let body: { preset?: string; model?: string };
             try {
-                body = (await request.json()) as { preset?: string };
+                body = (await request.json()) as { preset?: string; model?: string };
             } catch {
                 return ModelConfigController.createErrorResponse<{ preset: string }>('Invalid JSON body', 400);
             }
             const preset = body.preset;
-            if (preset !== 'fast' && preset !== 'balanced' && preset !== 'max') {
-                return ModelConfigController.createErrorResponse<{ preset: string }>('Invalid preset. Use fast, balanced or max.', 400);
+            if (preset !== 'fast' && preset !== 'balanced' && preset !== 'max' && preset !== 'custom') {
+                return ModelConfigController.createErrorResponse<{ preset: string }>('Invalid preset. Use fast, balanced, max or custom.', 400);
+            }
+            if (preset === 'custom' && !body.model) {
+                return ModelConfigController.createErrorResponse<{ preset: string }>('A model is required for a custom selection.', 400);
             }
 
             const modelConfigService = new ModelConfigService(env);
-            await modelConfigService.applyQualityPreset(user.id, preset);
+            try {
+                await modelConfigService.applyQualityPreset(user.id, preset, body.model);
+            } catch (e) {
+                return ModelConfigController.createErrorResponse<{ preset: string }>(
+                    e instanceof Error ? e.message : 'Failed to apply selection',
+                    400,
+                );
+            }
             return ModelConfigController.createSuccessResponse({ preset });
         } catch (error) {
             this.logger.error('Error applying quality preset:', error);

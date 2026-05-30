@@ -6,7 +6,7 @@
 import { BaseService } from './BaseService';
 import { UserModelConfig, NewUserModelConfig, userModelConfigs } from '../schema';
 import { eq, and } from 'drizzle-orm';
-import { AgentActionKey, ModelConfig, AIModels } from '../../agents/inferutils/config.types';
+import { AgentActionKey, ModelConfig, AIModels, AllModels } from '../../agents/inferutils/config.types';
 import { AGENT_CONFIG, AGENT_CONSTRAINTS } from '../../agents/inferutils/config';
 import type { ReasoningEffort } from '../../agents/inferutils/config.types';
 import { generateId } from '../../utils/idGenerator';
@@ -267,15 +267,49 @@ export class ModelConfigService extends BaseService {
 	 * from the chat screen without editing each model config by hand.
 	 *  - 'balanced': revert these actions to platform defaults
 	 *  - 'fast': Gemini Flash, low reasoning (fastest / cheapest)
-	 *  - 'max': Gemini Pro for blueprint + first build, high reasoning (best results)
+	 *  - 'max': Claude 4.5 Sonnet for planning + build, high reasoning (best results)
+	 *  - 'custom': use the given specific model for planning + build
 	 */
-	async applyQualityPreset(userId: string, preset: 'fast' | 'balanced' | 'max'): Promise<void> {
+	async applyQualityPreset(
+		userId: string,
+		preset: 'fast' | 'balanced' | 'max' | 'custom',
+		model?: string,
+	): Promise<void> {
 		const actions: AgentActionKey[] = [
 			'blueprint',
 			'phaseGeneration',
 			'firstPhaseImplementation',
 			'phaseImplementation',
 		];
+
+		if (preset === 'balanced') {
+			// Revert these actions to platform defaults
+			for (const action of actions) {
+				await this.deleteUserModelConfig(userId, action);
+			}
+			return;
+		}
+
+		// A specific model chosen via "More models": apply it to all heavy phases.
+		if (preset === 'custom') {
+			if (!model || !AllModels.includes(model as AIModels)) {
+				throw new Error(`Unknown model: ${model}`);
+			}
+			const heavy: Partial<ModelConfig> = {
+				name: model,
+				reasoning_effort: 'high',
+				max_tokens: 64000,
+				fallbackModel: AIModels.GEMINI_3_FLASH_PREVIEW,
+			};
+			for (const action of actions) {
+				await this.upsertUserModelConfig(
+					userId,
+					action,
+					action === 'phaseGeneration' ? { name: model, reasoning_effort: 'high' } : heavy,
+				);
+			}
+			return;
+		}
 
 		const presets: Record<'fast' | 'max', Partial<Record<AgentActionKey, Partial<ModelConfig>>>> = {
 			fast: {
@@ -286,29 +320,26 @@ export class ModelConfigService extends BaseService {
 			},
 			max: {
 				blueprint: {
-					name: AIModels.GEMINI_3_PRO_PREVIEW,
+					name: AIModels.CLAUDE_4_5_SONNET,
 					reasoning_effort: 'high',
 					max_tokens: 64000,
-					fallbackModel: AIModels.GEMINI_3_FLASH_PREVIEW,
+					fallbackModel: AIModels.GEMINI_3_PRO_PREVIEW,
 				},
 				phaseGeneration: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'high' },
 				firstPhaseImplementation: {
-					name: AIModels.GEMINI_3_PRO_PREVIEW,
+					name: AIModels.CLAUDE_4_5_SONNET,
+					reasoning_effort: 'high',
+					max_tokens: 64000,
+					fallbackModel: AIModels.GEMINI_3_PRO_PREVIEW,
+				},
+				phaseImplementation: {
+					name: AIModels.CLAUDE_4_5_SONNET,
 					reasoning_effort: 'high',
 					max_tokens: 64000,
 					fallbackModel: AIModels.GEMINI_3_FLASH_PREVIEW,
 				},
-				phaseImplementation: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'high', max_tokens: 64000 },
 			},
 		};
-
-		if (preset === 'balanced') {
-			// Revert these actions to platform defaults
-			for (const action of actions) {
-				await this.deleteUserModelConfig(userId, action);
-			}
-			return;
-		}
 
 		const def = presets[preset];
 		for (const action of actions) {
