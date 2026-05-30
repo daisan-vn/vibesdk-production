@@ -6,6 +6,7 @@ import { IssueReport } from "./domain/values/IssueReport";
 import { FileState, MAX_PHASES } from "./core/state";
 import { CODE_SERIALIZERS, CodeSerializerType } from "./utils/codeSerializers";
 import { getCodebaseContext } from "./utils/codebaseContext";
+import { getDaisanContext } from "./daisan-pipeline/context/daisan-context";
 
 export const PROMPT_UTILS = {
     /**
@@ -910,7 +911,13 @@ export function generalSystemPromptBuilder(
     }
 
     const formattedPrompt = PROMPT_UTILS.replaceTemplateVariables(prompt, variables);
-    return PROMPT_UTILS.verifyPrompt(formattedPrompt);
+    const verified = PROMPT_UTILS.verifyPrompt(formattedPrompt);
+
+    // P1: prepend condensed Daisan ecosystem context so generation is Daisan-aware
+    // by default (brand, tiles/VLXD domain, UI/code standards). Prepended AFTER
+    // verifyPrompt so it is not subject to {{placeholder}} verification. Flag-gated.
+    const daisan = getDaisanContext();
+    return daisan ? `${daisan}\n\n${verified}` : verified;
 }
 
 export function issuesPromptFormatter(issues: IssueReport): string {
