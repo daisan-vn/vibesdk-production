@@ -203,6 +203,14 @@ export type {
 
 export type { RateLimitError } from "worker/services/rate-limit/errors";
 export type { AgentPreviewResponse, CodeGenArgs, DeploymentDiagnostics } from 'worker/api/controllers/agent/types';
+export type {
+	PlanData,
+	PlanListData,
+	PlanStatus,
+	PlanContent,
+	CreatePlanRequest,
+	UpdatePlanRequest,
+} from 'worker/api/controllers/plans/types';
 export { MAX_AGENT_QUERY_LENGTH } from 'worker/api/controllers/agent/types';
 export type { RateLimitErrorResponse } from 'worker/api/responses';
 export { RateLimitExceededError, SecurityError, SecurityErrorType } from '../shared/types/errors.js';

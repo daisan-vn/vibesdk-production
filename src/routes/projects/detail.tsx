@@ -22,7 +22,8 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow, isValid } from 'date-fns';
 import { apiClient } from '@/lib/api-client';
-import type { AppDetailsData, DeploymentDiagnostics } from '@/api-types';
+import { toast } from 'sonner';
+import type { AppDetailsData, DeploymentDiagnostics, PlanData } from '@/api-types';
 
 type TabKey = 'overview' | 'studio' | 'plans' | 'deployments' | 'settings' | 'activity';
 
@@ -77,6 +78,38 @@ export default function ProjectDetailPage() {
 
 	const [diag, setDiag] = useState<{ loading: boolean; data?: DeploymentDiagnostics; error?: string } | null>(null);
 
+	const [plans, setPlans] = useState<PlanData[] | null>(null);
+	const [plansLoading, setPlansLoading] = useState(false);
+	const [creatingPlan, setCreatingPlan] = useState(false);
+
+	const loadPlans = async () => {
+		if (!id) return;
+		setPlansLoading(true);
+		try {
+			const res = await apiClient.listPlans({ appId: id });
+			if (res.success && res.data) setPlans(res.data.plans);
+			else setPlans([]);
+		} catch {
+			setPlans([]);
+		} finally {
+			setPlansLoading(false);
+		}
+	};
+
+	const createPlanForProject = async () => {
+		if (!id || !app) return;
+		setCreatingPlan(true);
+		try {
+			const res = await apiClient.createPlan({ title: `Plan for ${app.title}`, appId: id });
+			if (res.success && res.data) navigate(`/plans/${res.data.id}`);
+			else toast.error(res.error?.message || 'Failed to create plan');
+		} catch {
+			toast.error('Failed to create plan');
+		} finally {
+			setCreatingPlan(false);
+		}
+	};
+
 	useEffect(() => {
 		if (!id) return;
 		let alive = true;
@@ -110,6 +143,7 @@ export default function ProjectDetailPage() {
 	// Auto-run diagnostics the first time the Deployments tab opens.
 	useEffect(() => {
 		if (tab === 'deployments' && id && diag === null) runDiagnostics();
+		if (tab === 'plans' && id && plans === null) loadPlans();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [tab, id]);
 
@@ -263,13 +297,46 @@ export default function ProjectDetailPage() {
 					)}
 
 					{tab === 'plans' && (
-						<TabPanel
-							icon={ClipboardList}
-							title="Implementation plans"
-							body="Plans are produced inside the Studio using Plan mode — Daisan AI writes a structured implementation plan (scope, data model, UI, API, acceptance criteria) before building. Open the Studio and switch to Plan mode to create one."
-							actionLabel="Open Studio in Plan mode"
-							onAction={() => navigate(`/chat/${app.id}`)}
-						/>
+						<div className="space-y-3">
+							<div className="flex items-center justify-between">
+								<h3 className="text-sm font-medium text-text-primary">Implementation plans</h3>
+								<button
+									onClick={createPlanForProject}
+									disabled={creatingPlan}
+									className="inline-flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white disabled:opacity-60"
+								>
+									{creatingPlan ? <Loader2 className="size-3.5 animate-spin" /> : <ClipboardList className="size-3.5" />} New plan
+								</button>
+							</div>
+							{plansLoading || plans === null ? (
+								<div className="flex items-center gap-2 py-6 text-sm text-text-tertiary">
+									<Loader2 className="size-4 animate-spin" /> Loading plans…
+								</div>
+							) : plans.length === 0 ? (
+								<div className="rounded-xl border border-border-primary bg-bg-2/40 p-6 text-sm text-text-tertiary">
+									No plans for this project yet. Create one to capture scope, data model, API and acceptance criteria
+									before building.
+								</div>
+							) : (
+								<div className="space-y-2">
+									{plans.map((p) => (
+										<button
+											key={p.id}
+											onClick={() => navigate(`/plans/${p.id}`)}
+											className="block w-full rounded-xl border border-border-primary bg-bg-2/40 p-3 text-left transition-colors hover:border-accent/40"
+										>
+											<div className="flex items-center justify-between gap-2">
+												<span className="truncate text-sm font-medium text-text-primary">{p.title}</span>
+												<span className="shrink-0 rounded-full border border-border-primary bg-bg-3/60 px-2 py-0.5 text-[11px] capitalize text-text-tertiary">
+													{p.status}
+												</span>
+											</div>
+											{p.goal && <p className="mt-0.5 truncate text-xs text-text-tertiary">{p.goal}</p>}
+										</button>
+									))}
+								</div>
+							)}
+						</div>
 					)}
 
 					{tab === 'deployments' && (

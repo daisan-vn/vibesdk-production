@@ -192,6 +192,51 @@ export const apps = sqliteTable('apps', {
     updatedAtIdx: index('apps_updated_at_idx').on(table.updatedAt),
 }));
 
+// ============================================================================
+// IMPLEMENTATION PLANS
+// Structured implementation plans authored/approved before building.
+// ============================================================================
+
+export interface PlanContent {
+    assumptions?: string[];
+    affectedModules?: string[];
+    userFlow?: string;
+    dataModelImpact?: string;
+    apiImpact?: string;
+    uiChanges?: string;
+    edgeCases?: string[];
+    acceptanceCriteria?: string[];
+    implementationSteps?: string[];
+}
+
+export const plans = sqliteTable('plans', {
+    id: text('id').primaryKey(),
+
+    // Ownership and optional project scope
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+    appId: text('app_id').references(() => apps.id, { onDelete: 'cascade' }), // null = standalone plan
+
+    // Identity
+    title: text('title').notNull(),
+    status: text('status', {
+        enum: ['draft', 'approved', 'superseded', 'implemented', 'archived'],
+    })
+        .notNull()
+        .default('draft'),
+
+    // Plan body
+    goal: text('goal'),
+    content: text('content', { mode: 'json' }).$type<PlanContent>(),
+
+    // Metadata
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    plansUserIdx: index('plans_user_idx').on(table.userId),
+    plansAppIdx: index('plans_app_idx').on(table.appId),
+    plansStatusIdx: index('plans_status_idx').on(table.status),
+}));
+
 /**
  * Favorites table - Track user favorite apps
  */
@@ -588,6 +633,9 @@ export type NewApiKey = typeof apiKeys.$inferInsert;
 
 export type App = typeof apps.$inferSelect;
 export type NewApp = typeof apps.$inferInsert;
+
+export type Plan = typeof plans.$inferSelect;
+export type NewPlan = typeof plans.$inferInsert;
 
 export type AppLike = typeof appLikes.$inferSelect;
 export type NewAppLike = typeof appLikes.$inferInsert;

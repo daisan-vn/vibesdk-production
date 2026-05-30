@@ -8,6 +8,7 @@ import { setupModelConfigRoutes } from './modelConfigRoutes';
 import { setupModelProviderRoutes } from './modelProviderRoutes';
 import { setupGitHubExporterRoutes } from './githubExporterRoutes';
 import { setupCodegenRoutes } from './codegenRoutes';
+import { setupPlanRoutes } from './planRoutes';
 import { setupScreenshotRoutes } from './imagesRoutes';
 import { setupSentryRoutes } from './sentryRoutes';
 import { setupCapabilitiesRoutes } from './capabilitiesRoutes';
@@ -46,6 +47,9 @@ export function setupRoutes(app: Hono<AppEnv>): void {
     
     // Codegen routes
     setupCodegenRoutes(app);
+
+    // Plan-store routes (implementation plans)
+    setupPlanRoutes(app);
     
     // User dashboard and profile routes
     setupUserRoutes(app);

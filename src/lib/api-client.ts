@@ -53,6 +53,10 @@ import type{
 	CodeGenArgs,
 	AgentPreviewResponse,
 	DeploymentDiagnostics,
+	PlanData,
+	PlanListData,
+	CreatePlanRequest,
+	UpdatePlanRequest,
 	PlatformStatusData,
 	RateLimitError,
 	CapabilitiesData,
@@ -1057,6 +1061,34 @@ class ApiClient {
 			{},
 			true,
 		);
+	}
+
+	// ===============================
+	// Plan-store API Methods
+	// ===============================
+
+	async listPlans(params?: { appId?: string; status?: string }): Promise<ApiResponse<PlanListData>> {
+		const qs = new URLSearchParams();
+		if (params?.appId) qs.set('appId', params.appId);
+		if (params?.status) qs.set('status', params.status);
+		const suffix = qs.toString() ? `?${qs.toString()}` : '';
+		return this.request<PlanListData>(`/api/plans${suffix}`);
+	}
+
+	async createPlan(data: CreatePlanRequest): Promise<ApiResponse<PlanData>> {
+		return this.request<PlanData>(`/api/plans`, { method: 'POST', body: data });
+	}
+
+	async getPlan(planId: string): Promise<ApiResponse<PlanData>> {
+		return this.request<PlanData>(`/api/plans/${planId}`);
+	}
+
+	async updatePlan(planId: string, data: UpdatePlanRequest): Promise<ApiResponse<PlanData>> {
+		return this.request<PlanData>(`/api/plans/${planId}`, { method: 'PATCH', body: data });
+	}
+
+	async deletePlan(planId: string): Promise<ApiResponse<{ deleted: boolean }>> {
+		return this.request<{ deleted: boolean }>(`/api/plans/${planId}`, { method: 'DELETE' });
 	}
 
 	// ===============================
