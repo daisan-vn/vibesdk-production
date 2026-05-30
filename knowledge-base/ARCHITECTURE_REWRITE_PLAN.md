@@ -13,6 +13,19 @@
 
 ---
 
+## TRẠNG THÁI THỰC THI (cập nhật)
+
+| Phase | Trạng thái | Ghi chú |
+|---|---|---|
+| **P0** Skeleton | ✅ Xong | `daisan-pipeline/types.ts` (đã thay stub bằng orchestrator thật) |
+| **P1** Daisan context | ✅ Xong | `daisan-context.ts` inject vào `generalSystemPromptBuilder` (flag `DAISAN_CONTEXT_ENABLED`) |
+| **P2** Orchestrator | ✅ Xong | `daisan-pipeline/orchestrator.ts` `runSpecialistBrief` — chạy specialist song song, best-effort |
+| **P3** 3 agent mới | ✅ Xong | Database / Search / Content (`agents/specialists.ts`), kích hoạt theo keyword, gộp brief vào blueprint |
+| **P4** Designer + QA | ✅ Xong | Designer (UI-heavy) + QA acceptance-criteria thêm vào bộ specialist. *Lưu ý: QA-gate-với-loopback POST-generation đã có sẵn trong VibeSDK (PostPhaseCodeFixer + DeepDebugger + code review) — P4 bổ sung QA ở tầng THIẾT KẾ.* Handoff/audit = orchestrator log specialist nào chạy. |
+| **P5** Ramp/A-B | ⚪ N/A cho nội bộ | Ramp 5%→100% là cho multi-tenant. daisan.ai nội bộ → flag `DAISAN_SPECIALISTS_ENABLED` on/off đã đủ. A/B thật cần metrics backend (follow-up nếu cần). |
+
+Tất cả qua flag `DAISAN_SPECIALISTS_ENABLED` (wrangler.jsonc vars, đang `"true"`). Specialist chạy CÓ ĐIỀU KIỆN (theo keyword) + best-effort + fold brief vào blueprint — KHÔNG thay engine.
+
 ## 1. Hiện trạng: VibeSDK đã có gì (mapping 12-agent ↔ code thật)
 
 | Vai trò (workflow doc) | Component/operation hiện có | Trạng thái |
