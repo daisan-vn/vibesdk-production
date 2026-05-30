@@ -1,9 +1,42 @@
 import type { BlueprintType, PhasicBlueprint } from '@/api-types';
 import clsx from 'clsx';
+import {
+	Sparkles,
+	FileText,
+	Palette,
+	Package,
+	LayoutGrid,
+	Workflow,
+	Database,
+	Map as MapIcon,
+	Rocket,
+	AlertTriangle,
+} from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import { Markdown } from './messages';
 
 const isPhasicBlueprint = (blueprint: BlueprintType): blueprint is PhasicBlueprint =>
 	'views' in blueprint;
+
+function Section({
+	icon: Icon,
+	title,
+	children,
+}: {
+	icon: LucideIcon;
+	title: string;
+	children: React.ReactNode;
+}) {
+	return (
+		<section>
+			<h3 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-text-50/60">
+				<Icon className="size-3.5 text-accent" strokeWidth={2} />
+				{title}
+			</h3>
+			{children}
+		</section>
+	);
+}
 
 export function Blueprint({
 	blueprint,
@@ -17,47 +50,77 @@ export function Blueprint({
 	const phasicBlueprint = isPhasicBlueprint(blueprint) ? blueprint : null;
 
 	return (
-		<div className={clsx('w-full flex flex-col', className)} {...props}>
-			<div className="bg-accent p-6 rounded-t-xl flex items-center bg-graph-paper">
-				<div className="flex flex-col gap-1">
-					<div className="uppercase text-xs tracking-wider text-text-on-brand/90">
-						Blueprint
+		<div
+			className={clsx(
+				'flex w-full flex-col overflow-hidden rounded-2xl border border-border-primary shadow-xl shadow-black/5',
+				className,
+			)}
+			{...props}
+		>
+			{/* Premium gradient header with ambient glow */}
+			<div className="relative overflow-hidden px-6 py-5">
+				<div
+					aria-hidden
+					className="absolute inset-0"
+					style={{
+						background:
+							'linear-gradient(120deg, rgba(255,61,0,0.95) 0%, rgba(217,70,239,0.85) 55%, rgba(56,118,255,0.8) 100%)',
+					}}
+				/>
+				<div
+					aria-hidden
+					className="pointer-events-none absolute -right-10 -top-16 h-48 w-48 opacity-60 blur-2xl"
+					style={{
+						background:
+							'radial-gradient(closest-side, rgba(255,255,255,0.55), transparent 70%)',
+					}}
+				/>
+				<div className="relative flex items-center gap-3">
+					<div className="flex size-10 items-center justify-center rounded-xl bg-white/15 ring-1 ring-white/25 backdrop-blur-sm">
+						<Sparkles className="size-5 text-white" strokeWidth={2} />
 					</div>
-					<div className="text-2xl font-medium text-text-on-brand">
-						{blueprint.title}
+					<div className="flex flex-col gap-0.5">
+						<div className="text-[11px] font-medium uppercase tracking-[0.18em] text-white/80">
+							Implementation Plan
+						</div>
+						<div className="text-xl font-semibold leading-tight text-white">
+							{blueprint.title}
+						</div>
 					</div>
 				</div>
 			</div>
-			<div className="flex flex-col px-6 py-4 bg-bg-2 rounded-b-xl space-y-8">
-				{/* Basic Info */}
-				<div className="grid grid-cols-[120px_1fr] gap-4 text-sm">
-					<div className="text-text-50/70 font-mono">Description</div>
-					<Markdown className="text-text-50">{blueprint.description}</Markdown>
 
-					{Array.isArray(blueprint.colorPalette) &&
-						blueprint.colorPalette.length > 0 && (
-							<>
-								<div className="text-text-50/70 font-mono">Color Palette</div>
-								<div className="flex items-center gap-2">
-									{Array.isArray(blueprint.colorPalette) &&
-										blueprint.colorPalette?.map((color, index) => (
-											<div
-												key={`color-${index}`}
-												className="size-6 rounded-md border border-text/10 flex items-center justify-center"
-												style={{ backgroundColor: color }}
-												title={color}
-											>
-												<span className="sr-only">{color}</span>
-											</div>
-										))}
-								</div>{' '}
-							</>
-						)}
+			<div className="flex flex-col space-y-7 rounded-b-2xl bg-bg-2 px-6 py-6">
+				{/* Overview */}
+				<Section icon={FileText} title="Description">
+					<Markdown className="text-sm leading-relaxed text-text-50">
+						{blueprint.description}
+					</Markdown>
+				</Section>
 
-					<div className="text-text-50/70 font-mono">Dependencies</div>
-					<div className="flex flex-wrap gap-2 items-center">
-						{Array.isArray(blueprint.frameworks) &&
-							blueprint.frameworks.map((framework, index) => {
+				{Array.isArray(blueprint.colorPalette) && blueprint.colorPalette.length > 0 && (
+					<Section icon={Palette} title="Color Palette">
+						<div className="flex flex-wrap items-center gap-2.5">
+							{blueprint.colorPalette.map((color, index) => (
+								<div key={`color-${index}`} className="flex flex-col items-center gap-1">
+									<div
+										className="size-8 rounded-lg border border-text/10 shadow-sm ring-1 ring-inset ring-white/10"
+										style={{ backgroundColor: color }}
+										title={color}
+									>
+										<span className="sr-only">{color}</span>
+									</div>
+									<span className="font-mono text-[10px] text-text-50/50">{color}</span>
+								</div>
+							))}
+						</div>
+					</Section>
+				)}
+
+				{Array.isArray(blueprint.frameworks) && blueprint.frameworks.length > 0 && (
+					<Section icon={Package} title="Dependencies">
+						<div className="flex flex-wrap items-center gap-2">
+							{blueprint.frameworks.map((framework, index) => {
 								let name: string, version: string | undefined;
 
 								// support scoped packages
@@ -76,168 +139,152 @@ export function Blueprint({
 								return (
 									<span
 										key={`framework-${framework}-${index}`}
-										className="flex items-center text-xs border border-text/20 rounded-full px-2 py-0.5 text-text-primary/90 hover:border-white/40 transition-colors"
+										className="flex items-center gap-0.5 rounded-full border border-border-primary bg-bg-3/60 px-2.5 py-1 text-xs text-text-primary/90 transition-colors hover:border-accent/40"
 									>
 										<span className="font-medium">{name}</span>
-										{version && (
-											<span className="text-text-primary/50">@{version}</span>
-										)}
+										{version && <span className="text-text-primary/45">@{version}</span>}
 									</span>
 								);
 							})}
-					</div>
-				</div>
+						</div>
+					</Section>
+				)}
 
 				{/* Views */}
 				{phasicBlueprint && phasicBlueprint.views?.length > 0 && (
-					<div>
-						<h3 className="text-sm font-medium mb-3 text-text-50/70 uppercase tracking-wider">
-							Views
-						</h3>
+					<Section icon={LayoutGrid} title="Views">
 						<div className="space-y-3">
 							{phasicBlueprint.views?.map((view, index) => (
-								<div key={`view-${index}`} className="space-y-1">
-									<h4 className="text-xs font-medium text-text-50/70">
-										{view.name}
-									</h4>
-									<Markdown className="text-sm text-text-50">
+								<div
+									key={`view-${index}`}
+									className="rounded-lg border border-border-primary/60 bg-bg-3/40 px-3 py-2"
+								>
+									<h4 className="text-xs font-semibold text-text-50/80">{view.name}</h4>
+									<Markdown className="mt-0.5 text-sm text-text-50/90">
 										{view.description}
 									</Markdown>
 								</div>
 							))}
 						</div>
-					</div>
+					</Section>
 				)}
 
 				{/* User Flow */}
 				{phasicBlueprint?.userFlow && (
-					<div>
-						<h3 className="text-sm font-medium mb-3 text-text-50/70 uppercase tracking-wider">
-							User Flow
-						</h3>
+					<Section icon={Workflow} title="User Flow">
 						<div className="space-y-4">
 							{phasicBlueprint.userFlow.uiLayout && (
 								<div>
-									<h4 className="text-xs font-medium mb-2 text-text-50/70">
-										UI Layout
-									</h4>
-									<Markdown className="text-sm text-text-50">
-									{phasicBlueprint.userFlow.uiLayout}
+									<h4 className="mb-1.5 text-xs font-medium text-text-50/70">UI Layout</h4>
+									<Markdown className="text-sm text-text-50/90">
+										{phasicBlueprint.userFlow.uiLayout}
 									</Markdown>
 								</div>
 							)}
 
 							{phasicBlueprint.userFlow.uiDesign && (
 								<div>
-									<h4 className="text-xs font-medium mb-2 text-text-50/70">
-										UI Design
-									</h4>
-									<Markdown className="text-sm text-text-50">
-									{phasicBlueprint.userFlow.uiDesign}
+									<h4 className="mb-1.5 text-xs font-medium text-text-50/70">UI Design</h4>
+									<Markdown className="text-sm text-text-50/90">
+										{phasicBlueprint.userFlow.uiDesign}
 									</Markdown>
 								</div>
 							)}
 
 							{phasicBlueprint.userFlow.userJourney && (
 								<div>
-									<h4 className="text-xs font-medium mb-2 text-text-50/70">
-										User Journey
-									</h4>
-									<Markdown className="text-sm text-text-50">
-									{phasicBlueprint.userFlow.userJourney}
+									<h4 className="mb-1.5 text-xs font-medium text-text-50/70">User Journey</h4>
+									<Markdown className="text-sm text-text-50/90">
+										{phasicBlueprint.userFlow.userJourney}
 									</Markdown>
 								</div>
 							)}
 						</div>
-					</div>
+					</Section>
 				)}
 
 				{/* Data Flow */}
-				{phasicBlueprint && (phasicBlueprint.dataFlow || phasicBlueprint.architecture?.dataFlow) && (
-					<div>
-						<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
-							Data Flow
-						</h3>
-						<Markdown className="text-sm text-text-50">
-							{phasicBlueprint.dataFlow || phasicBlueprint.architecture?.dataFlow}
-						</Markdown>
-					</div>
-				)}
+				{phasicBlueprint &&
+					(phasicBlueprint.dataFlow || phasicBlueprint.architecture?.dataFlow) && (
+						<Section icon={Database} title="Data Flow">
+							<Markdown className="text-sm text-text-50/90">
+								{phasicBlueprint.dataFlow || phasicBlueprint.architecture?.dataFlow}
+							</Markdown>
+						</Section>
+					)}
 
 				{/* Implementation Roadmap */}
 				{phasicBlueprint && phasicBlueprint.implementationRoadmap?.length > 0 && (
-					<div>
-						<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
-							Implementation Roadmap
-						</h3>
-						<div className="space-y-3">
+					<Section icon={MapIcon} title="Implementation Roadmap">
+						<ol className="space-y-3">
 							{phasicBlueprint.implementationRoadmap?.map((roadmapItem, index) => (
-								<div key={`roadmap-${index}`} className="space-y-1">
-									<h4 className="text-xs font-medium text-text-50/70">
-										Phase {index + 1}: {roadmapItem.phase}
-									</h4>
-									<Markdown className="text-sm text-text-50">
-										{roadmapItem.description}
-									</Markdown>
-								</div>
+								<li key={`roadmap-${index}`} className="flex gap-3">
+									<span className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-accent/10 text-[11px] font-semibold text-accent ring-1 ring-accent/20">
+										{index + 1}
+									</span>
+									<div className="space-y-0.5">
+										<h4 className="text-xs font-semibold text-text-50/80">
+											{roadmapItem.phase}
+										</h4>
+										<Markdown className="text-sm text-text-50/90">
+											{roadmapItem.description}
+										</Markdown>
+									</div>
+								</li>
 							))}
-						</div>
-					</div>
+						</ol>
+					</Section>
 				)}
 
 				{/* Initial Phase */}
 				{phasicBlueprint?.initialPhase && (
-					<div>
-						<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
-							Initial Phase
-						</h3>
-						<div className="space-y-3">
-							<div>
-								<h4 className="text-xs font-medium mb-2 text-text-50/70">
-									{phasicBlueprint.initialPhase.name}
-								</h4>
-								<Markdown className="text-sm text-text-50 mb-3">
-									{phasicBlueprint.initialPhase.description}
-								</Markdown>
-								{Array.isArray(phasicBlueprint.initialPhase.files) && phasicBlueprint.initialPhase.files.length > 0 && (
+					<Section icon={Rocket} title="Initial Phase">
+						<div>
+							<h4 className="mb-1.5 text-xs font-semibold text-text-50/80">
+								{phasicBlueprint.initialPhase.name}
+							</h4>
+							<Markdown className="mb-3 text-sm text-text-50/90">
+								{phasicBlueprint.initialPhase.description}
+							</Markdown>
+							{Array.isArray(phasicBlueprint.initialPhase.files) &&
+								phasicBlueprint.initialPhase.files.length > 0 && (
 									<div>
-										<h5 className="text-xs font-medium mb-2 text-text-50/60">
-											Files to be created:
+										<h5 className="mb-2 text-xs font-medium text-text-50/60">
+											Files to be created
 										</h5>
 										<div className="space-y-2">
-										{phasicBlueprint.initialPhase.files.map((file, fileIndex) => (
-												<div key={`initial-phase-file-${fileIndex}`} className="border-l-2 border-text/10 pl-3">
-													<div className="font-mono text-xs text-text-50/80">{file.path}</div>
-													<div className="text-xs text-text-50/60">{file.purpose}</div>
+											{phasicBlueprint.initialPhase.files.map((file, fileIndex) => (
+												<div
+													key={`initial-phase-file-${fileIndex}`}
+													className="border-l-2 border-accent/30 pl-3"
+												>
+													<div className="font-mono text-xs text-text-50/85">{file.path}</div>
+													<div className="text-xs text-text-50/55">{file.purpose}</div>
 												</div>
 											))}
 										</div>
 									</div>
 								)}
-							</div>
 						</div>
-					</div>
+					</Section>
 				)}
 
 				{/* Pitfalls */}
 				{phasicBlueprint && phasicBlueprint.pitfalls?.length > 0 && (
-					<div>
-						<h3 className="text-sm font-medium mb-2 text-text-50/70 uppercase tracking-wider">
-							Pitfalls
-						</h3>
-						<div className="prose prose-sm prose-invert">
-							<ul className="">
-								{phasicBlueprint.pitfalls?.map((pitfall, index) => (
-									<li key={`pitfall-${index}`} className="">
-										{pitfall}
-									</li>
-								))}
-							</ul>
-						</div>
-					</div>
+					<Section icon={AlertTriangle} title="Pitfalls">
+						<ul className="space-y-2">
+							{phasicBlueprint.pitfalls?.map((pitfall, index) => (
+								<li
+									key={`pitfall-${index}`}
+									className="flex gap-2 text-sm text-text-50/90"
+								>
+									<span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-amber-400/70" />
+									<span>{pitfall}</span>
+								</li>
+							))}
+						</ul>
+					</Section>
 				)}
-
-
 			</div>
 		</div>
 	);
