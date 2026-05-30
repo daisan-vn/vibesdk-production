@@ -7,7 +7,7 @@
  * incorporates them. Best-effort: a specialist failure is skipped, never fatal.
  */
 
-export type SpecialistId = 'database' | 'search' | 'content';
+export type SpecialistId = 'designer' | 'database' | 'search' | 'content' | 'qa';
 
 export interface Specialist {
 	id: SpecialistId;
@@ -24,6 +24,19 @@ const has = (req: string, words: string[]) => {
 };
 
 export const SPECIALISTS: Specialist[] = [
+	{
+		id: 'designer',
+		title: 'UI/UX Designer',
+		// UI-heavy requests (most app/page/storefront builds).
+		shouldRun: (req) =>
+			has(req, [
+				'page', 'trang', 'landing', 'storefront', 'dashboard', 'admin', 'ui', 'giao diện', 'layout',
+				'component', 'screen', 'màn hình', 'form', 'listing', 'grid', 'card', 'app', 'website', 'web',
+				'marketplace', 'showroom', 'portal', 'cổng',
+			]),
+		systemPrompt:
+			'Bạn là UI/UX DESIGNER cho Daisan (thương mại gạch ốp lát/VLXD). Với yêu cầu sau, thiết kế NGẮN GỌN: các SECTION của trang theo thứ tự, bố cục (grid/cột), các COMPONENT chính (ưu tiên component chuẩn: Header/ProductCard/DataTable/FilterSidebar…), state bắt buộc (hover/empty/loading/error), responsive desktop+mobile, dùng màu CAM Daisan + nền sáng cho storefront/tối cho admin. Đây là SPEC để engineer code theo, KHÔNG viết code. Tối đa ~250 từ.',
+	},
 	{
 		id: 'database',
 		title: 'Database Architect',
@@ -57,5 +70,13 @@ export const SPECIALISTS: Specialist[] = [
 			]),
 		systemPrompt:
 			'Bạn là AI CONTENT & SEO SPECIALIST cho Daisan (gạch ốp lát/VLXD). Với yêu cầu sau, gợi ý NGẮN GỌN: cấu trúc nội dung sản phẩm/trang, chuẩn hóa thuộc tính, và metadata SEO (title, slug, meta description, heading, schema.org phù hợp). Brand voice chuyên nghiệp tiếng Việt. KHÔNG bịa thông số kỹ thuật sản phẩm. Tối đa ~200 từ.',
+	},
+	{
+		id: 'qa',
+		title: 'QA & Acceptance Criteria',
+		// Runs for any build so the app is generated against explicit QA criteria.
+		shouldRun: () => true,
+		systemPrompt:
+			'Bạn là QA LEAD cho Daisan. Với yêu cầu build sau, hãy viết ACCEPTANCE CRITERIA ngắn gọn (checklist) mà app PHẢI đạt khi hoàn thành — bao gồm: đúng chức năng yêu cầu, đúng brand Daisan (màu cam, tiếng Việt), responsive desktop/mobile, đủ state hover/empty/loading/error, không lỗi console, dữ liệu mock đúng cấu trúc PIM. Đây là tiêu chí để engineer build ĐÚNG ngay từ đầu. Tối đa ~150 từ, dạng checklist `- [ ]`.',
 	},
 ];
