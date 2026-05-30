@@ -13,6 +13,7 @@ import {
 	Hammer,
 	Trash2,
 	RotateCcw,
+	Sparkles,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
@@ -215,6 +216,11 @@ export default function PlanDetailPage() {
 									<div className="flex items-center gap-2">
 										<h1 className="text-xl font-semibold text-text-primary">{plan.title}</h1>
 										<span className={`rounded-full border px-2 py-0.5 text-[11px] ${style.cls}`}>{style.label}</span>
+										{plan.source === 'blueprint' && (
+											<span className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-[11px] text-accent">
+												<Sparkles className="size-3" /> Captured from AI blueprint
+											</span>
+										)}
 									</div>
 								)}
 								{!editing && (

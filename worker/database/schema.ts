@@ -224,6 +224,9 @@ export const plans = sqliteTable('plans', {
         .notNull()
         .default('draft'),
 
+    // Where the plan came from: hand-authored or auto-captured from an AI blueprint
+    source: text('source', { enum: ['manual', 'blueprint'] }).notNull().default('manual'),
+
     // Plan body
     goal: text('goal'),
     content: text('content', { mode: 'json' }).$type<PlanContent>(),

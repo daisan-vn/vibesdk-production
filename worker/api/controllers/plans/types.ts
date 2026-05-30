@@ -4,6 +4,8 @@ export type { PlanContent };
 
 export type PlanStatus = 'draft' | 'approved' | 'superseded' | 'implemented' | 'archived';
 
+export type PlanSource = 'manual' | 'blueprint';
+
 export const PLAN_STATUSES: PlanStatus[] = [
 	'draft',
 	'approved',
@@ -19,6 +21,7 @@ export interface PlanData {
 	appId: string | null;
 	title: string;
 	status: PlanStatus;
+	source: PlanSource;
 	goal: string | null;
 	content: PlanContent | null;
 	createdAt: string | null;

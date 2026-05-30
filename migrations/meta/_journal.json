@@ -50,6 +50,13 @@
       "when": 1780140246503,
       "tag": "0006_right_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1780143681710,
+      "tag": "0007_eminent_mystique",
+      "breakpoints": true
     }
   ]
 }

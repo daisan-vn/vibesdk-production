@@ -51,6 +51,66 @@ export class PlanService extends BaseService {
 	}
 
 	/**
+	 * Upsert the single auto-captured (source='blueprint') plan for an app.
+	 * Creates it on first capture; on later blueprint regenerations it refreshes
+	 * title/goal/content while PRESERVING the plan's status (so an approved plan
+	 * stays approved). Idempotent — never produces duplicate captured plans.
+	 */
+	async upsertBlueprintPlan(
+		userId: string,
+		appId: string,
+		data: { title: string; goal?: string | null; content?: PlanContent | null },
+	): Promise<schema.Plan> {
+		const existing = await this.database
+			.select()
+			.from(schema.plans)
+			.where(
+				and(
+					eq(schema.plans.appId, appId),
+					eq(schema.plans.userId, userId),
+					eq(schema.plans.source, 'blueprint'),
+				),
+			)
+			.get();
+
+		const now = new Date();
+		if (existing) {
+			await this.database
+				.update(schema.plans)
+				.set({
+					title: data.title,
+					goal: data.goal ?? null,
+					content: data.content ?? null,
+					updatedAt: now,
+				})
+				.where(eq(schema.plans.id, existing.id));
+			const updated = await this.database
+				.select()
+				.from(schema.plans)
+				.where(eq(schema.plans.id, existing.id))
+				.get();
+			return updated!;
+		}
+
+		const [plan] = await this.database
+			.insert(schema.plans)
+			.values({
+				id: generateId(),
+				userId,
+				appId,
+				title: data.title,
+				goal: data.goal ?? null,
+				content: data.content ?? null,
+				status: 'draft',
+				source: 'blueprint',
+				createdAt: now,
+				updatedAt: now,
+			})
+			.returning();
+		return plan;
+	}
+
+	/**
 	 * List plans for a user, optionally scoped to a project (appId) and/or status.
 	 */
 	async listPlans(

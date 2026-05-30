@@ -23,6 +23,7 @@ export class PlansController extends BaseController {
 			appId: plan.appId ?? null,
 			title: plan.title,
 			status: plan.status as PlanStatus,
+			source: (plan.source as PlanData['source']) ?? 'manual',
 			goal: plan.goal ?? null,
 			content: plan.content ?? null,
 			createdAt: plan.createdAt ? new Date(plan.createdAt).toISOString() : null,

@@ -21,7 +21,8 @@ import { handleWebSocketMessage, handleWebSocketClose, broadcastToConnections, s
 import { WebSocketMessageData, WebSocketMessageType } from "worker/api/websocketTypes";
 import { PreviewType, TemplateDetails } from "worker/services/sandbox/sandboxTypes";
 import { WebSocketMessageResponses } from "../constants";
-import { AppService, ModelConfigService } from "worker/database";
+import { AppService, ModelConfigService, PlanService } from "worker/database";
+import type { PlanContent } from "worker/database/schema";
 import { ConversationMessage, ConversationState } from "../inferutils/common";
 import { ImageAttachment } from "worker/types/image-attachment";
 import { RateLimitExceededError } from "shared/types/errors";
@@ -38,6 +39,66 @@ const DEFAULT_CONVERSATION_SESSION_ID = 'default';
 interface AgentBootstrapProps {
     behaviorType?: BehaviorType;
     projectType?: ProjectType;
+}
+
+/** Structural view of a blueprint for mapping (handles phasic/agentic union shapes). */
+interface BlueprintLike {
+    title?: string;
+    description?: string;
+    detailedDescription?: string;
+    frameworks?: string[];
+    views?: { name?: string; description?: string }[];
+    userFlow?: string | { uiLayout?: string; uiDesign?: string; userJourney?: string };
+    dataFlow?: string;
+    architecture?: { dataFlow?: string };
+    pitfalls?: string[];
+    implementationRoadmap?: { phase?: string; description?: string }[];
+    plan?: string[];
+}
+
+/**
+ * Map an AI-generated blueprint (phasic or agentic) into plan-store shape.
+ * Defensive against the union: only fills sections the blueprint actually has.
+ */
+export function mapBlueprintToPlan(blueprint: unknown): {
+    title: string;
+    goal: string | null;
+    content: PlanContent;
+} {
+    const bp = (blueprint || {}) as BlueprintLike;
+    const content: PlanContent = {};
+
+    if (Array.isArray(bp.frameworks) && bp.frameworks.length) {
+        content.assumptions = bp.frameworks.slice();
+    }
+    if (Array.isArray(bp.views) && bp.views.length) {
+        content.affectedModules = bp.views.map((v) => v.name || '').filter(Boolean);
+    }
+    if (typeof bp.userFlow === 'string') {
+        content.userFlow = bp.userFlow;
+    } else if (bp.userFlow) {
+        content.userFlow = bp.userFlow.userJourney || bp.userFlow.uiLayout || undefined;
+        const ui = [bp.userFlow.uiLayout, bp.userFlow.uiDesign].filter(Boolean).join('\n\n');
+        if (ui) content.uiChanges = ui;
+    }
+    const dataFlow = bp.dataFlow || bp.architecture?.dataFlow;
+    if (dataFlow) content.dataModelImpact = dataFlow;
+    if (Array.isArray(bp.pitfalls) && bp.pitfalls.length) {
+        content.edgeCases = bp.pitfalls.slice();
+    }
+    if (Array.isArray(bp.implementationRoadmap) && bp.implementationRoadmap.length) {
+        content.implementationSteps = bp.implementationRoadmap.map((r) =>
+            [r.phase, r.description].filter(Boolean).join(': '),
+        );
+    } else if (Array.isArray(bp.plan) && bp.plan.length) {
+        content.implementationSteps = bp.plan.slice();
+    }
+
+    return {
+        title: bp.title || 'Implementation plan',
+        goal: bp.detailedDescription || bp.description || null,
+        content,
+    };
 }
 
 export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentInfrastructure<AgentState> {
@@ -393,12 +454,36 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
                 createdAt: new Date(),
             updatedAt: new Date()
             });
-        this.logger().info(`App saved successfully to database for agent ${this.state.metadata.agentId}`, { 
-            agentId: this.state.metadata.agentId, 
+        this.logger().info(`App saved successfully to database for agent ${this.state.metadata.agentId}`, {
+            agentId: this.state.metadata.agentId,
             userId: this.state.metadata.userId,
             visibility: 'private'
         });
+
+        // Auto-capture the generated blueprint into the plan-store as a Draft plan.
+        // Best-effort: never let a plan-capture failure break app creation.
+        await this.captureBlueprintAsPlan();
+
         this.logger().info(`Agent initialized successfully for agent ${this.state.metadata.agentId}`);
+    }
+
+    /**
+     * Persist the current AI-generated blueprint as a Draft implementation plan
+     * (source='blueprint'), linked to this app. Idempotent via PlanService upsert.
+     */
+    protected async captureBlueprintAsPlan(): Promise<void> {
+        try {
+            const userId = this.state.metadata.userId;
+            const appId = this.state.metadata.agentId;
+            if (!userId || !appId || !this.state.blueprint) return;
+
+            const { title, goal, content } = mapBlueprintToPlan(this.state.blueprint);
+            const planService = new PlanService(this.env);
+            await planService.upsertBlueprintPlan(userId, appId, { title, goal, content });
+            this.logger().info(`Captured blueprint as plan for agent ${appId}`);
+        } catch (error) {
+            this.logger().warn('Failed to capture blueprint as plan (non-fatal)', { error });
+        }
     }
 
     // ==========================================

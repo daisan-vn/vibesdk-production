@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
-import { ClipboardList, Plus, Loader2, Search } from 'lucide-react';
+import { ClipboardList, Plus, Loader2, Search, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import type { PlanData, PlanStatus } from '@/api-types';
@@ -161,6 +161,11 @@ export default function PlansPage() {
 												<div className="flex items-center gap-2">
 													<h3 className="truncate font-medium text-text-primary">{p.title}</h3>
 													<span className={`rounded-full border px-2 py-0.5 text-[11px] ${style.cls}`}>{style.label}</span>
+													{p.source === 'blueprint' && (
+														<span className="inline-flex items-center gap-1 rounded-full border border-accent/20 bg-accent/10 px-2 py-0.5 text-[11px] text-accent">
+															<Sparkles className="size-3" /> AI
+														</span>
+													)}
 												</div>
 												<p className="mt-0.5 truncate text-xs text-text-tertiary">
 													{p.goal || 'No goal set yet'}
