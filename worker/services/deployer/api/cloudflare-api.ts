@@ -28,6 +28,34 @@ export class CloudflareAPI {
 	}
 
 	/**
+	 * Check whether a worker script exists in a dispatch namespace.
+	 * Used by deployment diagnostics to confirm a deployed app is actually
+	 * present in the namespace the router resolves against — this is the
+	 * authoritative source of truth for "App not found or not deployed yet".
+	 */
+	async getDispatchScriptStatus(
+		scriptName: string,
+		dispatchNamespace: string,
+	): Promise<{ exists: boolean; httpStatus: number; modifiedOn?: string }> {
+		const url = `${this.baseUrl}/accounts/${this.accountId}/workers/dispatch/namespaces/${dispatchNamespace}/scripts/${scriptName}`;
+		const response = await fetch(url, {
+			method: 'GET',
+			headers: this.getHeaders(),
+		});
+		if (response.status === 200) {
+			let modifiedOn: string | undefined;
+			try {
+				const data = (await response.json()) as any;
+				modifiedOn = data?.result?.modified_on;
+			} catch {
+				// body is optional for our purposes
+			}
+			return { exists: true, httpStatus: 200, modifiedOn };
+		}
+		return { exists: false, httpStatus: response.status };
+	}
+
+	/**
 	 * Create an asset upload session with Cloudflare
 	 * Returns JWT token and list of files that need uploading
 	 */

@@ -52,6 +52,7 @@ import type{
 	OAuthProvider,
 	CodeGenArgs,
 	AgentPreviewResponse,
+	DeploymentDiagnostics,
 	PlatformStatusData,
 	RateLimitError,
 	CapabilitiesData,
@@ -1045,6 +1046,16 @@ class ApiClient {
 	): Promise<ApiResponse<AgentPreviewResponse>> {
 		return this.request<AgentPreviewResponse>(
 			`/api/agent/${agentId}/preview`,
+		);
+	}
+
+	async getDeploymentDiagnostics(
+		agentId: string,
+	): Promise<ApiResponse<DeploymentDiagnostics>> {
+		return this.request<DeploymentDiagnostics>(
+			`/api/agent/${agentId}/deployment-diagnostics`,
+			{},
+			true,
 		);
 	}
 

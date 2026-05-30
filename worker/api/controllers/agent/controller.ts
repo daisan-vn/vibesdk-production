@@ -8,8 +8,10 @@ import {
     AgentConnectionData,
     AgentPreviewResponse,
     CodeGenArgs,
+    DeploymentDiagnostics,
     MAX_AGENT_QUERY_LENGTH,
 } from './types';
+import { CloudflareAPI } from '../../../services/deployer/api/cloudflare-api';
 import { SecurityError, SecurityErrorType } from 'shared/types/errors';
 import { ApiResponse, ControllerResponse } from '../types';
 import { RouteContext } from '../../types/route-context';
@@ -18,7 +20,7 @@ import { ModelConfig, credentialsToRuntimeOverrides } from '../../../agents/infe
 import { RateLimitService } from '../../../services/rate-limit/rateLimits';
 import { validateWebSocketOrigin } from '../../../middleware/security/websocket';
 import { createLogger } from '../../../logger';
-import { getPreviewDomain } from 'worker/utils/urls';
+import { getPreviewDomain, buildUserWorkerUrl } from 'worker/utils/urls';
 import { ImageType, uploadImage } from 'worker/utils/images';
 import { ProcessedImageAttachment } from 'worker/types/image-attachment';
 import { getTemplateImportantFiles } from 'worker/services/sandbox/utils';
@@ -444,6 +446,119 @@ export class CodingAgentController extends BaseController {
             this.logger.error('Error deploying preview', error);
             const appError = CodingAgentController.handleError(error, 'deploy preview') as ControllerResponse<ApiResponse<AgentPreviewResponse>>;
             return appError;
+        }
+    }
+
+    /**
+     * Real deployment diagnostics — answers WHY an app's URL shows
+     * "App not found or not deployed yet" by probing the actual state:
+     *  1) App record + generation status
+     *  2) Whether a deploymentId (worker slug) exists
+     *  3) Whether that worker is actually present in the dispatch namespace
+     *     the router resolves against (authoritative — via Cloudflare API)
+     *  4) Whether the live URL responds
+     * Owner-only (enforced at the route).
+     */
+    static async getDeploymentDiagnostics(
+        _request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext
+    ): Promise<ControllerResponse<ApiResponse<DeploymentDiagnostics>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return CodingAgentController.createErrorResponse<DeploymentDiagnostics>('Missing agent ID parameter', 400);
+            }
+
+            const appService = new AppService(env);
+            const app = await appService.getAppDetails(agentId, context.user?.id);
+            if (!app) {
+                return CodingAgentController.createErrorResponse<DeploymentDiagnostics>('App not found', 404);
+            }
+
+            const deploymentId = app.deploymentId ?? null;
+            const liveUrl = deploymentId ? buildUserWorkerUrl(env, deploymentId) : null;
+            const namespace = ('DISPATCH_NAMESPACE' in env && env.DISPATCH_NAMESPACE)
+                ? String(env.DISPATCH_NAMESPACE)
+                : null;
+
+            let workerInNamespace: boolean | null = null;
+            let workerModifiedOn: string | null = null;
+            let liveUrlStatus: number | null = null;
+
+            // Probe the dispatch namespace (authoritative source of truth).
+            if (deploymentId && namespace && env.CLOUDFLARE_ACCOUNT_ID && env.CLOUDFLARE_API_TOKEN) {
+                try {
+                    const cf = new CloudflareAPI(env.CLOUDFLARE_ACCOUNT_ID, env.CLOUDFLARE_API_TOKEN);
+                    const status = await cf.getDispatchScriptStatus(deploymentId, namespace);
+                    workerInNamespace = status.exists;
+                    workerModifiedOn = status.modifiedOn ?? null;
+                } catch (e) {
+                    this.logger.warn('Diagnostics: namespace probe failed', { agentId, error: e });
+                    workerInNamespace = null;
+                }
+            }
+
+            // Probe the live URL (best-effort; does not loop back to this worker).
+            if (liveUrl) {
+                try {
+                    const res = await fetch(liveUrl, { method: 'GET', redirect: 'manual' });
+                    liveUrlStatus = res.status;
+                } catch {
+                    liveUrlStatus = null;
+                }
+            }
+
+            // Derive verdict.
+            let severity: DeploymentDiagnostics['severity'] = 'unknown';
+            let verdict = '';
+            if (!deploymentId) {
+                severity = 'not_deployed';
+                verdict = app.status === 'generating'
+                    ? 'App is still generating and has never been deployed to Cloudflare. Finish generation, then open the Studio and click Deploy.'
+                    : 'This app has never been deployed to Cloudflare (no deployment slug). Open the Studio and click Deploy to publish it to a live URL.';
+            } else if (workerInNamespace === false) {
+                severity = 'failed';
+                verdict = `A deployment slug exists ("${deploymentId}") but the worker is NOT present in namespace "${namespace}". The last deploy failed or the worker was removed — this is exactly what triggers "App not found or not deployed yet". Open the Studio and redeploy.`;
+            } else if (workerInNamespace === true) {
+                if (liveUrlStatus !== null && liveUrlStatus >= 200 && liveUrlStatus < 400) {
+                    severity = 'ok';
+                    verdict = `Healthy. Worker "${deploymentId}" is live in namespace "${namespace}" and the URL responds (${liveUrlStatus}).`;
+                } else if (liveUrlStatus !== null) {
+                    severity = 'degraded';
+                    verdict = `Worker "${deploymentId}" is deployed in the namespace, but the live URL returned ${liveUrlStatus}. Likely a runtime/build/env error inside the app rather than a routing problem. Check the app's runtime and environment variables.`;
+                } else {
+                    severity = 'degraded';
+                    verdict = `Worker "${deploymentId}" is deployed in the namespace, but the live URL could not be reached from the server. It may still load in a browser; verify directly.`;
+                }
+            } else {
+                // Could not probe the namespace (missing creds/namespace).
+                severity = 'unknown';
+                verdict = namespace
+                    ? 'Could not verify the namespace (Cloudflare credentials unavailable on the server). The app has a deployment slug; verify the live URL directly.'
+                    : 'No dispatch namespace configured on the server, so namespace state could not be verified.';
+            }
+
+            const diagnostics: DeploymentDiagnostics = {
+                appId: agentId,
+                title: app.title,
+                status: app.status,
+                deploymentId,
+                liveUrl,
+                namespace,
+                workerInNamespace,
+                workerModifiedOn,
+                liveUrlStatus,
+                severity,
+                verdict,
+                checkedAt: new Date().toISOString(),
+            };
+
+            return CodingAgentController.createSuccessResponse(diagnostics);
+        } catch (error) {
+            this.logger.error('Error running deployment diagnostics', error);
+            return CodingAgentController.handleError(error, 'run deployment diagnostics') as ControllerResponse<ApiResponse<DeploymentDiagnostics>>;
         }
     }
 }
