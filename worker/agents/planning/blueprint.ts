@@ -418,6 +418,7 @@ export async function generateBlueprint(
             schema,
             context: inferenceContext,
             stream,
+            throwOnExhaustion: true,
         });
 
         // Filter out PDF files from phasic blueprints

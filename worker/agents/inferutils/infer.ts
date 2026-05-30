@@ -101,6 +101,8 @@ interface InferenceParamsBase {
     onAssistantMessage?: (message: Message) => Promise<void>;
     completionConfig?: CompletionConfig;
     onUsageConsumed?: () => void;
+    /** When true, throw the real last error after all retries instead of returning null. */
+    throwOnExhaustion?: boolean;
 }
 
 interface InferenceParamsStructured<T extends z.AnyZodObject> extends InferenceParamsBase {
@@ -133,9 +135,12 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     context,
     onAssistantMessage,
     completionConfig,
+    throwOnExhaustion = false,
 }: InferenceParamsBase &    {
     schema?: T;
     format?: SchemaFormat;
+    /** When true, throw the real last error after all retries instead of returning null. */
+    throwOnExhaustion?: boolean;
 }): Promise<InferResponseString | InferResponseObject<T> | null> {
     // Resolve config with clear precedence: userConfig > defaults
     const resolvedConfig = resolveModelConfig(
@@ -152,6 +157,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
     const backoffMs = (attempt: number) => Math.min(500 * Math.pow(2, attempt), 10000);
 
     let useCheaperModel = false;
+    let lastError: unknown = null;
 
     for (let attempt = 0; attempt < retryLimit; attempt++) {
         try {
@@ -216,6 +222,7 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 throw error;
             }
             
+            lastError = error;
             const isLastAttempt = attempt === retryLimit - 1;
             logger.error(
                 `Error during ${agentActionName} operation (attempt ${attempt + 1}/${retryLimit}):`,
@@ -244,6 +251,18 @@ export async function executeInference<T extends z.AnyZodObject>(   {
                 await new Promise(resolve => setTimeout(resolve, delay));
             }
         }
+    }
+
+    // All retries (and fallback model) exhausted. Log the REAL last error so the
+    // cause (provider 429, auth, parse…) is diagnosable instead of a silent null.
+    const detail = lastError instanceof Error ? lastError.message : String(lastError ?? 'unknown error');
+    logger.error(`${agentActionName} failed after ${retryLimit} attempts: ${detail}`);
+
+    // Opt-in: surface the real error to the caller/UI. Default keeps the legacy
+    // null return so best-effort callers (optional fixers) don't break.
+    if (throwOnExhaustion) {
+        if (lastError instanceof Error) throw lastError;
+        throw new Error(`Inference failed for ${agentActionName} after ${retryLimit} attempts: ${detail}`);
     }
     return null;
 }

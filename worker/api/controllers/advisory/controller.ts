@@ -115,6 +115,7 @@ export class AdvisoryController extends BaseController {
 				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				context: prepared.inferenceContext as any,
 				maxTokens: 6000,
+				throwOnExhaustion: true,
 			});
 			const text = result && typeof result === 'object' && 'string' in result ? (result.string as string) : '';
 			return AdvisoryController.createSuccessResponse<AdvisoryResponseData>({
@@ -149,62 +150,78 @@ export class AdvisoryController extends BaseController {
 			let streamedAny = false;
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const ctx = prepared.inferenceContext as any;
-			try {
-				// Call infer() directly (not executeInference) so a real error is
-				// surfaced instead of being swallowed into a null result. Use a known
-				// stable model for the advisory chat.
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				const result: any = await infer({
-					env,
-					metadata: ctx.metadata,
-					messages: prepared.messages,
-					maxTokens: 6000,
-					// Gemini 3 Flash: same model the generation pipeline uses successfully.
-					// Gemini 2.5 Flash was returning provider 429 (separate quota).
-					modelName: AIModels.GEMINI_3_FLASH_PREVIEW,
-					actionKey: 'conversationalResponse',
-					temperature: 0.4,
-					runtimeOverrides: ctx.runtimeOverrides,
-					onUsageConsumed: ctx.onUsageConsumed,
-					shouldUseUserKey: ctx.shouldUseUserKey,
-					userApiToken: ctx.userApiToken,
-					userGateway: ctx.userGateway,
-					stream: {
-						chunk_size: 48,
-						onChunk: (chunk: string) => {
-							if (chunk) streamedAny = true;
-							void writer.write(encoder.encode(chunk));
-						},
-					},
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				} as any);
 
-				if (!streamedAny) {
-					const text = result && typeof result === 'object' && 'string' in result ? (result.string as string) : '';
-					await writer.write(
-						encoder.encode(text || 'Xin lỗi, tôi chưa tạo được câu trả lời. Vui lòng thử lại.'),
-					);
-				}
-			} catch (error) {
-				const msg = error instanceof Error ? error.message : String(error);
-				this.logger.error('Advisory infer error', error);
+			// Fallback chain: if a model returns 429/quota error BEFORE any token has
+			// streamed, try the next model. Once streaming has started we never retry
+			// (would duplicate output). Different providers ⇒ resilient to per-model 429.
+			const MODELS = [AIModels.GEMINI_3_FLASH_PREVIEW, AIModels.GEMINI_2_5_PRO, AIModels.GROK_4_1_FAST];
+			let lastError: unknown = null;
+			let ok = false;
+
+			for (const model of MODELS) {
 				try {
-					await writer.write(
-						encoder.encode(
-							streamedAny
-								? `\n\n[Lỗi khi tạo câu trả lời: ${msg}]`
-								: `Xin lỗi, có lỗi khi tạo câu trả lời: ${msg}`,
-						),
-					);
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					const result: any = await infer({
+						env,
+						metadata: ctx.metadata,
+						messages: prepared.messages,
+						maxTokens: 6000,
+						modelName: model,
+						actionKey: 'conversationalResponse',
+						temperature: 0.4,
+						runtimeOverrides: ctx.runtimeOverrides,
+						onUsageConsumed: ctx.onUsageConsumed,
+						shouldUseUserKey: ctx.shouldUseUserKey,
+						userApiToken: ctx.userApiToken,
+						userGateway: ctx.userGateway,
+						stream: {
+							chunk_size: 48,
+							onChunk: (chunk: string) => {
+								if (chunk) streamedAny = true;
+								void writer.write(encoder.encode(chunk));
+							},
+						},
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					} as any);
+
+					ok = true;
+					if (!streamedAny) {
+						// Model returned the full answer without firing onChunk.
+						const text = result && typeof result === 'object' && 'string' in result ? (result.string as string) : '';
+						if (text) {
+							await writer.write(encoder.encode(text));
+							streamedAny = true;
+						}
+					}
+					break;
+				} catch (error) {
+					lastError = error;
+					this.logger.warn(`Advisory model ${model} failed: ${error instanceof Error ? error.message : String(error)}`);
+					if (streamedAny) break; // already streamed partial — do not retry to avoid duplicate output
+					// else: try next model in the chain
+				}
+			}
+
+			if (!ok && !streamedAny) {
+				const msg = lastError instanceof Error ? lastError.message : String(lastError ?? 'unknown');
+				this.logger.error('Advisory: all models failed', lastError);
+				try {
+					await writer.write(encoder.encode(`Xin lỗi, hệ thống AI đang bận (mọi model đều lỗi: ${msg}). Vui lòng thử lại sau giây lát.`));
 				} catch {
 					/* ignore */
 				}
-			} finally {
+			} else if (!ok && streamedAny) {
 				try {
-					await writer.close();
+					await writer.write(encoder.encode('\n\n[Phản hồi bị gián đoạn. Vui lòng thử lại.]'));
 				} catch {
 					/* ignore */
 				}
+			}
+
+			try {
+				await writer.close();
+			} catch {
+				/* ignore */
 			}
 		})();
 
