@@ -159,7 +159,9 @@ export class AdvisoryController extends BaseController {
 					metadata: ctx.metadata,
 					messages: prepared.messages,
 					maxTokens: 6000,
-					modelName: AIModels.GEMINI_2_5_FLASH,
+					// Gemini 3 Flash: same model the generation pipeline uses successfully.
+					// Gemini 2.5 Flash was returning provider 429 (separate quota).
+					modelName: AIModels.GEMINI_3_FLASH_PREVIEW,
 					actionKey: 'conversationalResponse',
 					temperature: 0.4,
 					runtimeOverrides: ctx.runtimeOverrides,
