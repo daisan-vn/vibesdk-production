@@ -73,9 +73,10 @@ export default function Home() {
 
 
 	const placeholderPhrases = useMemo(() => [
-		"todo list app",
-		"F1 fantasy game",
-		"personal finance tracker"
+		"a showroom dashboard",
+		"a product catalog manager",
+		"an RFQ quote flow",
+		"a B2B pricing portal",
 	], []);
 
 	const {
@@ -144,31 +145,27 @@ export default function Home() {
 
 	return (
 		<div className="relative flex flex-col items-center size-full">
-			{/* Dotted background pattern - extends to full viewport */}
-			<div className="fixed inset-0 text-accent z-0 opacity-20 pointer-events-none">
-				<svg width="100%" height="100%">
-					<defs>
-						<pattern
-							id=":S2:"
-							viewBox="-6 -6 12 12"
-							patternUnits="userSpaceOnUse"
-							width="12"
-							height="12"
-						>
-							<circle
-								cx="0"
-								cy="0"
-								r="1"
-								fill="currentColor"
-							></circle>
-						</pattern>
-					</defs>
-					<rect
-						width="100%"
-						height="100%"
-						fill="url(#:S2:)"
-					></rect>
-				</svg>
+			{/* Premium gradient hero background + subtle dotted texture */}
+			<div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+				{/* Daisan glow: orange -> magenta -> electric blue, sitting under the composer */}
+				<div
+					className="absolute left-1/2 top-[34%] -translate-x-1/2 -translate-y-1/2 h-[70vh] w-[140vw] max-w-[1500px] rounded-full blur-[130px] opacity-25 dark:opacity-45"
+					style={{
+						background:
+							'radial-gradient(closest-side, rgba(255,61,0,0.55), rgba(217,70,239,0.30) 42%, rgba(56,118,255,0.24) 68%, transparent 100%)',
+					}}
+				/>
+				{/* Soft dotted texture */}
+				<div className="absolute inset-0 text-accent opacity-[0.07]">
+					<svg width="100%" height="100%">
+						<defs>
+							<pattern id=":S2:" viewBox="-6 -6 12 12" patternUnits="userSpaceOnUse" width="12" height="12">
+								<circle cx="0" cy="0" r="1" fill="currentColor"></circle>
+							</pattern>
+						</defs>
+						<rect width="100%" height="100%" fill="url(#:S2:)"></rect>
+					</svg>
+				</div>
 			</div>
 
 			<LayoutGroup>
@@ -180,9 +177,13 @@ export default function Home() {
 							"px-6 p-8 flex flex-col items-center z-10",
 							discoverReady ? "mt-48" : "mt-[20vh] sm:mt-[24vh] md:mt-[28vh]"
 						)}>
-						<h1 className="text-shadow-sm text-shadow-red-200 dark:text-shadow-red-900 text-accent font-medium leading-[1.1] tracking-tight text-5xl w-full mb-4 bg-clip-text bg-gradient-to-r from-text-primary to-text-primary/90">
-							What should we build today?
+						<h1 className="text-center font-semibold leading-[1.07] tracking-tight text-4xl sm:text-5xl md:text-[3.5rem] w-full mb-3 bg-clip-text text-transparent bg-gradient-to-br from-text-primary via-text-primary to-accent">
+							Build Daisan systems with AI
 						</h1>
+						<p className="text-center text-text-tertiary text-sm sm:text-base max-w-xl mb-7 leading-relaxed">
+							Create PIM modules, storefront pages, B2B workflows, showroom
+							dashboards and sales tools — just by chatting with AI.
+						</p>
 						<PromptBox
 							value={query}
 							onChange={setQuery}
@@ -212,6 +213,16 @@ export default function Home() {
 								) : undefined
 							}
 						/>
+
+						{/* Daisan use-cases */}
+						<div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs text-text-tertiary">
+							{['PIM', 'DaisanStore', 'B2B', 'B2C', 'Showroom', 'Lead/RFQ', 'Deployment'].map((u, i) => (
+								<span key={u} className="flex items-center gap-3">
+									{i > 0 && <span className="size-1 rounded-full bg-text-tertiary/40" />}
+									{u}
+								</span>
+							))}
+						</div>
 					</motion.div>
 
 				</div>
