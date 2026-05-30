@@ -1,5 +1,6 @@
 import { useNavigate, useSearchParams } from 'react-router';
 import { motion } from 'framer-motion';
+import { LayoutGrid, Plus } from 'lucide-react';
 import { toggleFavorite } from '@/hooks/use-apps';
 import { usePaginatedApps } from '@/hooks/use-paginated-apps';
 import { AppListContainer } from '@/components/shared/AppListContainer';
@@ -72,15 +73,39 @@ export default function AppsPage() {
 					transition={{ duration: 0.5 }}
 				>
 					{/* Header */}
-					<div className="mb-8">
-						<h1 className="text-6xl font-bold mb-3 font-[departureMono] text-accent">
-							MY APPS
-						</h1>
-						<p className="text-text-tertiary text-lg">
-							{loading
-								? 'Loading...'
-								: `${totalCount} app${totalCount !== 1 ? 's' : ''} in your workspace`}
-						</p>
+					<div className="relative mb-8 overflow-hidden rounded-2xl border border-border-primary bg-bg-2/40 px-6 py-7 sm:px-8 sm:py-8">
+						{/* Ambient glow */}
+						<div
+							aria-hidden
+							className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 opacity-70 blur-2xl"
+							style={{
+								background:
+									'radial-gradient(closest-side, rgba(255,61,0,0.35), rgba(217,70,239,0.18) 45%, transparent 72%)',
+							}}
+						/>
+						<div className="relative flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+							<div className="flex items-center gap-4">
+								<div className="flex size-12 items-center justify-center rounded-2xl bg-accent/10 text-accent ring-1 ring-accent/20">
+									<LayoutGrid className="size-6" strokeWidth={1.75} />
+								</div>
+								<div>
+									<h1 className="bg-gradient-to-r from-text-primary to-text-primary/70 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
+										Your apps
+									</h1>
+									<p className="mt-1 text-sm text-text-tertiary">
+										{loading
+											? 'Loading your workspace…'
+											: `${totalCount} app${totalCount !== 1 ? 's' : ''} in your workspace`}
+									</p>
+								</div>
+							</div>
+							<button
+								onClick={() => navigate('/')}
+								className="inline-flex shrink-0 items-center gap-2 self-start rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02] active:scale-[0.98] sm:self-auto"
+							>
+								<Plus className="size-4" strokeWidth={2.25} /> New app
+							</button>
+						</div>
 					</div>
 
 					<div className="flex flex-col gap-4">
@@ -151,8 +176,15 @@ export default function AppsPage() {
 								? {
 										title: 'No apps yet',
 										description:
-											'Start building your first app with AI assistance.',
-										action: <div></div>,
+											'Describe what you want to build and let Daisan AI create it for you.',
+										action: (
+											<button
+												onClick={() => navigate('/')}
+												className="inline-flex items-center gap-2 rounded-xl bg-accent px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+											>
+												<Plus className="size-4" strokeWidth={2.25} /> Build your first app
+											</button>
+										),
 									}
 								: undefined
 						}
