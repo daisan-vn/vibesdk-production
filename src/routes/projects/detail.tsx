@@ -23,7 +23,7 @@ import {
 import { formatDistanceToNow, isValid } from 'date-fns';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
-import type { AppDetailsData, DeploymentDiagnostics, PlanData } from '@/api-types';
+import type { AppDetailsData, DeploymentDiagnostics, PlanData, DeploymentHistoryEntry } from '@/api-types';
 
 type TabKey = 'overview' | 'studio' | 'plans' | 'deployments' | 'settings' | 'activity';
 
@@ -77,6 +77,18 @@ export default function ProjectDetailPage() {
 	const [tab, setTab] = useState<TabKey>('overview');
 
 	const [diag, setDiag] = useState<{ loading: boolean; data?: DeploymentDiagnostics; error?: string } | null>(null);
+
+	const [history, setHistory] = useState<DeploymentHistoryEntry[] | null>(null);
+
+	const loadHistory = async () => {
+		if (!id) return;
+		try {
+			const res = await apiClient.getDeploymentHistory(id);
+			setHistory(res.success && res.data ? res.data.deployments : []);
+		} catch {
+			setHistory([]);
+		}
+	};
 
 	const [plans, setPlans] = useState<PlanData[] | null>(null);
 	const [plansLoading, setPlansLoading] = useState(false);
@@ -143,6 +155,7 @@ export default function ProjectDetailPage() {
 	// Auto-run diagnostics the first time the Deployments tab opens.
 	useEffect(() => {
 		if (tab === 'deployments' && id && diag === null) runDiagnostics();
+		if (tab === 'deployments' && id && history === null) loadHistory();
 		if (tab === 'plans' && id && plans === null) loadPlans();
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [tab, id]);
@@ -398,6 +411,65 @@ export default function ProjectDetailPage() {
 										</button>
 									)}
 								</div>
+							)}
+						</div>
+					)}
+
+					{tab === 'deployments' && (
+						<div className="mt-5">
+							<h3 className="mb-2 text-sm font-medium text-text-primary">Deployment history</h3>
+							{history === null ? (
+								<div className="flex items-center gap-2 py-3 text-xs text-text-tertiary">
+									<Loader2 className="size-3.5 animate-spin" /> Loading history…
+								</div>
+							) : history.length === 0 ? (
+								<p className="rounded-xl border border-border-primary bg-bg-2/40 p-4 text-xs text-text-tertiary">
+									No deploy attempts recorded yet. Deploys triggered from the Studio will appear here.
+								</p>
+							) : (
+								<ol className="space-y-2">
+									{history.map((h) => {
+										const ok = h.status === 'ready';
+										return (
+											<li
+												key={h.id}
+												className="flex items-start gap-3 rounded-xl border border-border-primary bg-bg-2/40 p-3"
+											>
+												<span
+													className={`mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full ${
+														ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
+													}`}
+												>
+													{ok ? <CheckCircle2 className="size-3.5" /> : <XCircle className="size-3.5" />}
+												</span>
+												<div className="min-w-0 flex-1">
+													<div className="flex flex-wrap items-center gap-2">
+														<span className="text-sm font-medium capitalize text-text-primary">{h.status}</span>
+														{h.target && (
+															<span className="rounded-full border border-border-primary bg-bg-3/60 px-2 py-0.5 text-[11px] text-text-tertiary">
+																{h.target}
+															</span>
+														)}
+														<span className="text-[11px] text-text-tertiary">
+															{h.createdAt ? new Date(h.createdAt).toLocaleString() : ''}
+														</span>
+													</div>
+													{h.deploymentUrl && (
+														<a
+															href={h.deploymentUrl}
+															target="_blank"
+															rel="noreferrer"
+															className="mt-0.5 inline-flex items-center gap-1 text-xs text-text-tertiary hover:text-accent"
+														>
+															{h.deploymentUrl.replace(/^https?:\/\//, '')} <ExternalLink className="size-3" />
+														</a>
+													)}
+													{h.error && <p className="mt-0.5 text-xs text-red-400/90">{h.error}</p>}
+												</div>
+											</li>
+										);
+									})}
+								</ol>
 							)}
 						</div>
 					)}

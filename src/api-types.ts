@@ -202,7 +202,7 @@ export type {
 } from 'worker/agents/inferutils/config.types';
 
 export type { RateLimitError } from "worker/services/rate-limit/errors";
-export type { AgentPreviewResponse, CodeGenArgs, DeploymentDiagnostics } from 'worker/api/controllers/agent/types';
+export type { AgentPreviewResponse, CodeGenArgs, DeploymentDiagnostics, DeploymentHistoryData, DeploymentHistoryEntry } from 'worker/api/controllers/agent/types';
 export type {
 	PlanData,
 	PlanListData,

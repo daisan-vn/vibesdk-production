@@ -53,6 +53,7 @@ import type{
 	CodeGenArgs,
 	AgentPreviewResponse,
 	DeploymentDiagnostics,
+	DeploymentHistoryData,
 	PlanData,
 	PlanListData,
 	CreatePlanRequest,
@@ -1058,6 +1059,16 @@ class ApiClient {
 	): Promise<ApiResponse<DeploymentDiagnostics>> {
 		return this.request<DeploymentDiagnostics>(
 			`/api/agent/${agentId}/deployment-diagnostics`,
+			{},
+			true,
+		);
+	}
+
+	async getDeploymentHistory(
+		agentId: string,
+	): Promise<ApiResponse<DeploymentHistoryData>> {
+		return this.request<DeploymentHistoryData>(
+			`/api/agent/${agentId}/deployments`,
 			{},
 			true,
 		);

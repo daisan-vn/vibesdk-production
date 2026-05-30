@@ -24,7 +24,7 @@ import { fixProjectIssues } from '../../../services/code-fixer';
 import { FastCodeFixerOperation } from '../../operations/PostPhaseCodeFixer';
 import { looksLikeCommand, validateAndCleanBootstrapCommands } from '../../utils/common';
 import { customizeTemplateFiles, generateBootstrapScript } from '../../utils/templateCustomizer';
-import { AppService } from '../../../database';
+import { AppService, DeploymentHistoryService } from '../../../database';
 import { RateLimitExceededError } from 'shared/types/errors';
 import { ImageAttachment, type ProcessedImageAttachment } from '../../../types/image-attachment';
 import { OperationOptions } from '../../operations/common';
@@ -1260,6 +1260,15 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
                 );
             }
 
+            // Record deployment history (best-effort, never breaks the deploy)
+            await this.recordDeploymentHistory(
+                target,
+                result.deploymentUrl ? 'ready' : 'failed',
+                result.deploymentUrl,
+                result.deploymentId,
+                result.deploymentUrl ? null : 'Deployment did not produce a live URL',
+            );
+
             return result.deploymentUrl ? { deploymentUrl: result.deploymentUrl } : null;
 
         } catch (error) {
@@ -1268,7 +1277,42 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
                 message: 'Deployment failed',
                 error: error instanceof Error ? error.message : String(error)
             });
+            await this.recordDeploymentHistory(
+                target,
+                'failed',
+                null,
+                null,
+                error instanceof Error ? error.message : String(error),
+            );
             return null;
+        }
+    }
+
+    /**
+     * Append a deployment-history event. Best-effort — swallows its own errors so
+     * deployment logging never affects the deploy outcome.
+     */
+    protected async recordDeploymentHistory(
+        target: DeploymentTarget,
+        status: 'ready' | 'failed',
+        deploymentUrl: string | null,
+        deploymentId: string | null | undefined,
+        error: string | null,
+    ): Promise<void> {
+        try {
+            const userId = this.state.metadata?.userId;
+            if (!userId) return;
+            await new DeploymentHistoryService(this.env).record({
+                appId: this.getAgentId(),
+                userId,
+                status,
+                deploymentUrl,
+                deploymentId: deploymentId ?? null,
+                target,
+                error,
+            });
+        } catch (e) {
+            this.logger.warn('Failed to record deployment history (non-fatal)', { error: e });
         }
     }
 

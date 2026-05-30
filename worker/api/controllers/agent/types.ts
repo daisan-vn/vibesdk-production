@@ -59,3 +59,18 @@ export interface DeploymentDiagnostics {
     /** ISO timestamp when diagnostics ran. */
     checkedAt: string;
 }
+
+/** One deployment attempt in an app's history timeline. */
+export interface DeploymentHistoryEntry {
+    id: string;
+    status: 'queued' | 'building' | 'ready' | 'failed';
+    deploymentUrl: string | null;
+    deploymentId: string | null;
+    target: string | null;
+    error: string | null;
+    createdAt: string | null;
+}
+
+export interface DeploymentHistoryData {
+    deployments: DeploymentHistoryEntry[];
+}

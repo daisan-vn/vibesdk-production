@@ -10,6 +10,7 @@ import { AgentComponent } from '../AgentComponent';
 import type { AgentInfrastructure } from '../AgentCore';
 import { WebSocketMessageResponses } from '../../constants';
 import { AppService } from '../../../database/services/AppService';
+import { DeploymentHistoryService } from '../../../database/services/DeploymentHistoryService';
 import { GitHubService } from '../../../services/github';
 import {
 	getAdditionalExportStrategy,
@@ -94,6 +95,14 @@ export class ProjectObjective<
 				});
 			}
 
+			await this.recordDeploymentHistory(
+				target,
+				result.deploymentUrl ? 'ready' : 'failed',
+				result.deploymentUrl ?? null,
+				result.deploymentId ?? null,
+				result.deploymentUrl ? null : 'Deployment did not produce a live URL',
+			);
+
 			return {
 				success: !!result.deploymentUrl,
 				target,
@@ -110,7 +119,35 @@ export class ProjectObjective<
 				message: 'Deployment failed',
 				error: message,
 			});
+			await this.recordDeploymentHistory(target, 'failed', null, null, message);
 			return { success: false, target, error: message };
+		}
+	}
+
+	/**
+	 * Append a deployment-history event. Best-effort — never affects deploy outcome.
+	 */
+	protected async recordDeploymentHistory(
+		target: string,
+		status: 'ready' | 'failed',
+		deploymentUrl: string | null,
+		deploymentId: string | null,
+		error: string | null,
+	): Promise<void> {
+		try {
+			const userId = (this.state as { metadata?: { userId?: string } }).metadata?.userId;
+			if (!userId) return;
+			await new DeploymentHistoryService(this.env).record({
+				appId: this.getAgentId(),
+				userId,
+				status,
+				deploymentUrl,
+				deploymentId,
+				target,
+				error,
+			});
+		} catch (e) {
+			this.logger.warn('Failed to record deployment history (non-fatal)', { error: e });
 		}
 	}
 

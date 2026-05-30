@@ -34,4 +34,7 @@ export function setupCodegenRoutes(app: Hono<AppEnv>): void {
     // Real deployment diagnostics for an app - OWNER ONLY
     // Probes the dispatch namespace + live URL to explain "App not found".
     app.get('/api/agent/:agentId/deployment-diagnostics', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.getDeploymentDiagnostics));
+
+    // Deployment history timeline for an app - OWNER ONLY
+    app.get('/api/agent/:agentId/deployments', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.getDeploymentHistory));
 }

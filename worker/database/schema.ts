@@ -240,6 +240,29 @@ export const plans = sqliteTable('plans', {
     plansStatusIdx: index('plans_status_idx').on(table.status),
 }));
 
+// ============================================================================
+// DEPLOYMENT HISTORY
+// Immutable record of each deployment attempt for an app (timeline).
+// ============================================================================
+
+export const deployments = sqliteTable('deployments', {
+    id: text('id').primaryKey(),
+    appId: text('app_id').references(() => apps.id, { onDelete: 'cascade' }),
+    userId: text('user_id').references(() => users.id, { onDelete: 'cascade' }),
+
+    status: text('status', { enum: ['queued', 'building', 'ready', 'failed'] }).notNull(),
+    deploymentUrl: text('deployment_url'),
+    deploymentId: text('deployment_id'), // worker slug used for this deploy
+    target: text('target'), // 'platform' (dispatch namespace) | 'user' (direct worker)
+    error: text('error'), // failure reason, if any
+
+    createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+    deploymentsAppIdx: index('deployments_app_idx').on(table.appId),
+    deploymentsUserIdx: index('deployments_user_idx').on(table.userId),
+    deploymentsCreatedIdx: index('deployments_created_idx').on(table.createdAt),
+}));
+
 /**
  * Favorites table - Track user favorite apps
  */
@@ -639,6 +662,9 @@ export type NewApp = typeof apps.$inferInsert;
 
 export type Plan = typeof plans.$inferSelect;
 export type NewPlan = typeof plans.$inferInsert;
+
+export type Deployment = typeof deployments.$inferSelect;
+export type NewDeployment = typeof deployments.$inferInsert;
 
 export type AppLike = typeof appLikes.$inferSelect;
 export type NewAppLike = typeof appLikes.$inferInsert;

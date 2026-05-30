@@ -9,9 +9,11 @@ import {
     AgentPreviewResponse,
     CodeGenArgs,
     DeploymentDiagnostics,
+    DeploymentHistoryData,
     MAX_AGENT_QUERY_LENGTH,
 } from './types';
 import { CloudflareAPI } from '../../../services/deployer/api/cloudflare-api';
+import { DeploymentHistoryService } from '../../../database';
 import { SecurityError, SecurityErrorType } from 'shared/types/errors';
 import { ApiResponse, ControllerResponse } from '../types';
 import { RouteContext } from '../../types/route-context';
@@ -559,6 +561,49 @@ export class CodingAgentController extends BaseController {
         } catch (error) {
             this.logger.error('Error running deployment diagnostics', error);
             return CodingAgentController.handleError(error, 'run deployment diagnostics') as ControllerResponse<ApiResponse<DeploymentDiagnostics>>;
+        }
+    }
+
+    /**
+     * Deployment history timeline for an app (owner-only).
+     */
+    static async getDeploymentHistory(
+        _request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext
+    ): Promise<ControllerResponse<ApiResponse<DeploymentHistoryData>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return CodingAgentController.createErrorResponse<DeploymentHistoryData>('Missing agent ID parameter', 400);
+            }
+            const userId = context.user?.id;
+            if (!userId) {
+                return CodingAgentController.createErrorResponse<DeploymentHistoryData>('Unauthorized', 401);
+            }
+
+            const appService = new AppService(env);
+            const app = await appService.getAppDetails(agentId, userId);
+            if (!app) {
+                return CodingAgentController.createErrorResponse<DeploymentHistoryData>('App not found', 404);
+            }
+
+            const rows = await new DeploymentHistoryService(env).listForApp(agentId, userId);
+            return CodingAgentController.createSuccessResponse<DeploymentHistoryData>({
+                deployments: rows.map((r) => ({
+                    id: r.id,
+                    status: r.status as DeploymentHistoryData['deployments'][number]['status'],
+                    deploymentUrl: r.deploymentUrl ?? null,
+                    deploymentId: r.deploymentId ?? null,
+                    target: r.target ?? null,
+                    error: r.error ?? null,
+                    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : null,
+                })),
+            });
+        } catch (error) {
+            this.logger.error('Error fetching deployment history', error);
+            return CodingAgentController.handleError(error, 'fetch deployment history') as ControllerResponse<ApiResponse<DeploymentHistoryData>>;
         }
     }
 }

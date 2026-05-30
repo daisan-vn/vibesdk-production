@@ -12,5 +12,6 @@ export { BaseService } from './services/BaseService';
 export { UserService } from './services/UserService';
 export { AppService } from './services/AppService';
 export { PlanService } from './services/PlanService';
+export { DeploymentHistoryService } from './services/DeploymentHistoryService';
 export { ModelConfigService } from './services/ModelConfigService';
 export { ModelTestService } from './services/ModelTestService';
