@@ -34,6 +34,7 @@ import { ChatModals } from './components/chat-modals';
 import { MainContentPanel } from './components/main-content-panel';
 import { ChatInput } from './components/chat-input';
 import { type ChatMode } from './components/mode-selector';
+import { ThemePanel } from './components/theme-panel';
 import { toast } from 'sonner';
 import { useVault } from '@/hooks/use-vault';
 import { VaultUnlockModal } from '@/components/vault';
@@ -658,6 +659,20 @@ export default function Chat() {
 		[newMessage, websocket, sendUserMessage, isChatDisabled, scrollToBottom, images, clearImages, limitsData, limitsLoading, chatMode],
 	);
 
+	// Themes panel: apply a design-token change via the Build pipeline.
+	const applyTheme = useCallback(
+		(instruction: string, summary: string) => {
+			if (!websocket || isChatDisabled) return;
+			sendWebSocketMessage(websocket, 'user_suggestion', {
+				message: instruction,
+				mode: 'build',
+			});
+			sendUserMessage(summary);
+			requestAnimationFrame(() => scrollToBottom());
+		},
+		[websocket, isChatDisabled, sendUserMessage, scrollToBottom],
+	);
+
 	const [progress, total] = useMemo((): [number, number] => {
 		// Calculate phase progress instead of file progress
 		const completedPhases = phaseTimeline.filter(p => p.status === 'completed').length;
@@ -880,6 +895,9 @@ export default function Chat() {
 					</div>
 
 
+				<div className="flex items-center justify-end px-4 pt-1">
+					<ThemePanel onApply={applyTheme} disabled={isChatDisabled} />
+				</div>
 				<ChatInput
 					newMessage={newMessage}
 					onMessageChange={setNewMessage}
