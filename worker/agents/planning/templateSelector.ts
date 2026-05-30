@@ -141,11 +141,25 @@ Selection: "react-social"
 complexity: "simple" // Because single page application
 Reasoning: "Social template provides user interactions, content sharing, and community features closest to recipe sharing needs"
 
+## TEMPLATE FAMILY SELECTION (READ CAREFULLY — this is the #1 cause of bad results):
+
+Templates fall into two families. Picking the wrong family produces a generic, wrong app.
+
+1. **Client-side React SPA** (a modern React single-page-app starter): the correct choice for the VAST MAJORITY of UI-driven apps — storefronts, e-commerce, marketplaces, product catalogs, product listings, landing/marketing pages, showroom/locator sites, dashboards, portfolios, and any content-rich interface whose value is the UI/UX. Data can be mock/seed data now and wired to a real API later. **PREFER THIS BY DEFAULT for rich front-end apps.**
+
+2. **Durable-Object / multi-entity storage backends** (an app built around one Durable Object storing entities, usually shipping with a generic "Users / Chats / Messages" demo CRUD): choose ONLY when persistent multi-user SERVER-SIDE state is the CORE, irreducible requirement — e.g. realtime collaboration, multiplayer, chat/messaging backends, apps whose primary purpose is saving user-generated records on the server.
+
+CRITICAL rules:
+- Do NOT pick a storage/Durable-Object template merely because the request mentions "products", "categories", "users", "items" or other "entities". A storefront/catalog with browsable products is a **React SPA with (mock) data**, NOT an entity-CRUD backend.
+- e-commerce / storefront / marketplace / catalog / shop / landing / marketing / showroom / booking-display / brochure → choose the **client-side React SPA** template.
+- The storage templates ship with a throwaway demo UI (e.g. "Users / Chats"). If building the request would mean deleting most of the template's demo, you picked the WRONG template — pick the React SPA instead. That demo must never survive into the final app.
+
 ## SELECTION CRITERIA:
-1. **Feature Alignment** - Templates with similar core functionality
-2. **Tech Stack Match** - Compatible frameworks and dependencies  
-3. **Architecture Fit** - Similar application structure and patterns
-4. **Minimal Modification** - Template requiring least changes
+1. **Family Fit** - Pick the right template FAMILY first (see above), then the best template within it
+2. **Feature Alignment** - Templates with similar core functionality
+3. **Tech Stack Match** - Compatible frameworks and dependencies
+4. **Architecture Fit** - Similar application structure and patterns
+5. **Minimal Modification** - Template requiring least changes
 
 ## STYLE GUIDE:
 - **Minimalist Design**: Clean, simple interfaces
