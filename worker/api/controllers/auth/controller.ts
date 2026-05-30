@@ -18,7 +18,8 @@ import {
     mapUserResponse,
     setSecureAuthCookies,
 	clearAuthCookies,
-	extractSessionId
+	extractSessionId,
+	isEmailAllowed
 } from '../../../utils/authUtils';
 import { JWTUtils } from '../../../utils/jwtUtils';
 import { RouteContext } from '../../types/route-context';
@@ -60,9 +61,9 @@ export class AuthController extends BaseController {
 
             const validatedData = registerSchema.parse(bodyResult.data);
 
-            if (env.ALLOWED_EMAIL && validatedData.email !== env.ALLOWED_EMAIL) {
+            if (!isEmailAllowed(env.ALLOWED_EMAIL, validatedData.email)) {
                 return AuthController.createErrorResponse(
-                    'Email Whitelisting is enabled. Please use the allowed email to register.',
+                    'Email Whitelisting is enabled. Please use an allowed email to register.',
                     403
                 );
             }
@@ -115,9 +116,9 @@ export class AuthController extends BaseController {
 
             const validatedData = loginSchema.parse(bodyResult.data);
 
-            if (env.ALLOWED_EMAIL && validatedData.email !== env.ALLOWED_EMAIL) {
+            if (!isEmailAllowed(env.ALLOWED_EMAIL, validatedData.email)) {
                 return AuthController.createErrorResponse(
-                    'Email Whitelisting is enabled. Please use the allowed email to login.',
+                    'Email Whitelisting is enabled. Please use an allowed email to login.',
                     403
                 );
             }

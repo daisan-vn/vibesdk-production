@@ -22,7 +22,7 @@ import {
     AuthUser, 
     OAuthProvider
 } from '../../types/auth-types';
-import { mapUserResponse, validateRedirectUrl } from '../../utils/authUtils';
+import { mapUserResponse, validateRedirectUrl, isEmailAllowed } from '../../utils/authUtils';
 import { createLogger } from '../../logger';
 import { validateEmail, validatePassword } from '../../utils/validationUtils';
 import { extractRequestMetadata } from '../../utils/authUtils';
@@ -417,7 +417,17 @@ export class AuthService extends BaseService {
             
             // Get user info
             const oauthUserInfo = await oauthProvider.getUserInfo(tokens.accessToken);
-            
+
+            // Enforce the email whitelist for OAuth logins as well (the email/password
+            // paths are gated in the controller; OAuth must honor the same allowlist).
+            if (!isEmailAllowed(this.env.ALLOWED_EMAIL, oauthUserInfo.email)) {
+                throw new SecurityError(
+                    SecurityErrorType.UNAUTHORIZED,
+                    'Email Whitelisting is enabled. This account is not permitted to sign in.',
+                    403
+                );
+            }
+
             // Find or create user
             const user = await this.findOrCreateOAuthUser(provider, oauthUserInfo);
             

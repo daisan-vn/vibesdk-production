@@ -65,15 +65,17 @@
 	"containers": [
 		{
 			"class_name": "UserAppSandboxService",
-			"image": "./SandboxDockerfile",
+            // Reuse the already-built, currently-running sandbox image so deploy
+            // does NOT require a local Docker build. (Original: "./SandboxDockerfile")
+			"image": "registry.cloudflare.com/4916931057954a4b6187316d83b4a5f2/vibesdk-production-userappsandboxservice:5f1d8444",
             // "image": "registry.cloudflare.com/vibesdk-production-userappsandboxservice:cfe197fc",
-            // Altering max_instances value will have no effect. Please use the MAX_SANDBOX_INSTANCES var instead.
-			"max_instances": 1400,
-            // ATTENTION: Altering instance_type value will have no effect. Please use the SANDBOX_INSTANCE_TYPE var instead.
+            // Matched to the currently-running container to stay within the
+            // account vCPU quota and only re-link (not rescale) the container.
+			"max_instances": 10,
             "instance_type": {
-                "vcpu": 4,
+                "vcpu": 2,
                 "memory_mib": 8192,
-                "disk_mb": 10240
+                "disk_mb": 16000
             },
             "rollout_step_percentage": 100,
 			"ssh": {
@@ -148,20 +150,13 @@
             "tag": "v3"
         }
 	],
-	"routes": [
-        {
-            "pattern": "build.cloudflare.dev",
-            "custom_domain": true
-        },
-        {
-            "pattern": "*build-preview.cloudflare.dev/*",
-            "custom_domain": false,
-            "zone_id": "db01fac4261b2604aacad8410443a3e2"
-        }
-    ],
+    // Routes intentionally omitted: daisan.ai is attached to this Worker as a
+    // custom domain via the dashboard and is managed outside this config. The
+    // upstream build.cloudflare.dev routes are not owned by this account and
+    // made `wrangler deploy` fail at the routes step.
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/cloudflare/vibesdk-templates",
-        "ALLOWED_EMAIL": "ALLOWED_EMAILS=admin@daisan.vn,nhamphongdaijsc@gmail.com,it@daisan.vn",
+        "ALLOWED_EMAIL": "admin@daisan.vn,nhamphongdaijsc@gmail.com,it@daisan.vn",
         "DISPATCH_NAMESPACE": "vibesdk-default-namespace",
         "ENABLE_READ_REPLICAS": "true",
         "CLOUDFLARE_AI_GATEWAY": "vibesdk-gateway",

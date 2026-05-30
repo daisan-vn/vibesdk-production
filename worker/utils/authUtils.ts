@@ -9,6 +9,30 @@ import { createLogger } from '../logger';
 const logger = createLogger('AuthUtils');
 
 /**
+ * Parse the ALLOWED_EMAIL whitelist into a normalized list of emails.
+ * Supports a comma-separated list and tolerates an accidental
+ * "ALLOWED_EMAILS=" prefix in the configured value.
+ */
+export function parseAllowedEmails(allowed: string | undefined | null): string[] {
+    if (!allowed) return [];
+    return allowed
+        .replace(/^\s*ALLOWED_EMAILS?\s*=/i, '')
+        .split(',')
+        .map((email) => email.trim().toLowerCase())
+        .filter(Boolean);
+}
+
+/**
+ * Returns true if the given email is permitted to authenticate.
+ * When no whitelist is configured, all emails are allowed.
+ */
+export function isEmailAllowed(allowed: string | undefined | null, email: string): boolean {
+    const list = parseAllowedEmails(allowed);
+    if (list.length === 0) return true;
+    return list.includes(email.trim().toLowerCase());
+}
+
+/**
  * Extract sessionId from cookie
 */
 export function extractSessionId(request: Request): string | null {

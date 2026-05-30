@@ -2,7 +2,7 @@
  * Demo mode: use the app without real login (local / demo deployments).
  * Set to false for production with real authentication.
  */
-export const ENABLE_DEMO_WITHOUT_AUTH = true;
+export const ENABLE_DEMO_WITHOUT_AUTH = false;
 
 export const DEMO_USER_ID = 'demo-123';
 export const DEMO_ACCESS_TOKEN = 'demo-token';
