@@ -11,6 +11,7 @@ import type { CodeGeneratorAgent } from './codingAgent';
 interface IncomingWebSocketMessage {
     type: string;
     message?: string;
+    mode?: 'plan' | 'build';
     images?: ImageAttachment[];
     credentials?: CredentialsPayload;
     data?: {
@@ -166,7 +167,14 @@ export async function handleWebSocketMessage(
                     sendError(connection, 'No message provided in user suggestion');
                     return;
                 }
-                
+
+                // Apply the Plan/Build mode toggle from the UI. The build() guard
+                // reads executionMode, so updating it here makes follow-up requests
+                // honour Plan mode (analyze only) vs Build mode (apply changes).
+                if (parsedMessage.mode === 'plan' || parsedMessage.mode === 'build') {
+                    agent.setState({ ...agent.state, executionMode: parsedMessage.mode });
+                }
+
                 // Validate image count and size
                 if (parsedMessage.images && parsedMessage.images.length > 0) {
                     if (parsedMessage.images.length > MAX_IMAGES_PER_MESSAGE) {

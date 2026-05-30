@@ -5,6 +5,7 @@ import { PromptBox } from '@/components/prompt-box';
 import { sendWebSocketMessage } from '../utils/websocket-helpers';
 import type { ImageAttachment } from '@/api-types';
 import { type UsageSummary } from '@/hooks/use-limits';
+import { ModeSelector, type ChatMode } from './mode-selector';
 
 interface ChatInputProps {
 	// Form state
@@ -43,6 +44,10 @@ interface ChatInputProps {
 	// Usage limits
 	limitsData?: UsageSummary | null;
 	onConnectCloudflare?: () => void;
+
+	// Plan/Build mode
+	mode: ChatMode;
+	onModeChange: (mode: ChatMode) => void;
 }
 
 export function ChatInput({
@@ -64,6 +69,8 @@ export function ChatInput({
 	chatFormRef,
 	limitsData,
 	onConnectCloudflare,
+	mode,
+	onModeChange,
 }: ChatInputProps) {
 	const handleStopGeneration = () => {
 		if (websocket) {
@@ -78,6 +85,10 @@ export function ChatInput({
 			: isRunning
 				? 'Chat with AI while generating...'
 				: 'Chat with AI...';
+
+	const modeSelector = (
+		<ModeSelector mode={mode} onModeChange={onModeChange} disabled={isChatDisabled} />
+	);
 
 	const stopButton = (isGenerating || isGeneratingBlueprint || isDebugging) ? (
 		<button
@@ -111,7 +122,12 @@ export function ChatInput({
 			limitsData={limitsData}
 			onConnectCloudflare={onConnectCloudflare}
 			variant="compact"
-			rightActions={stopButton}
+			rightActions={
+				<div className="flex items-center gap-2">
+					{modeSelector}
+					{stopButton}
+				</div>
+			}
 			maxWords={4000}
 			formRef={chatFormRef}
 			className="shrink-0 p-4 pb-5 bg-transparent"

@@ -33,6 +33,8 @@ import { mergeFiles } from '@/utils/file-helpers';
 import { ChatModals } from './components/chat-modals';
 import { MainContentPanel } from './components/main-content-panel';
 import { ChatInput } from './components/chat-input';
+import { type ChatMode } from './components/mode-selector';
+import { toast } from 'sonner';
 import { useVault } from '@/hooks/use-vault';
 import { VaultUnlockModal } from '@/components/vault';
 import { useLimitsContext } from '@/contexts/limits-context';
@@ -283,6 +285,31 @@ export default function Chat() {
 
 	const [newMessage, setNewMessage] = useState('');
 	const [showTooltip, setShowTooltip] = useState(false);
+
+	// Plan/Build chat mode. Defaults to 'plan' so a new session never modifies the
+	// project before the user reviews a plan.
+	const [chatMode, setChatMode] = useState<ChatMode>('plan');
+	const handleModeChange = useCallback((next: ChatMode) => {
+		setChatMode((prev) => {
+			if (prev === 'plan' && next === 'build') {
+				toast.message('Switching to Build mode', {
+					description: 'The next request may modify your project.',
+				});
+			}
+			return next;
+		});
+	}, []);
+	// Keyboard shortcuts: Alt+P -> Plan, Alt+B -> Build.
+	useEffect(() => {
+		const onKey = (e: KeyboardEvent) => {
+			if (!e.altKey || e.ctrlKey || e.metaKey) return;
+			const k = e.key.toLowerCase();
+			if (k === 'p') { e.preventDefault(); handleModeChange('plan'); }
+			else if (k === 'b') { e.preventDefault(); handleModeChange('build'); }
+		};
+		window.addEventListener('keydown', onKey);
+		return () => window.removeEventListener('keydown', onKey);
+	}, [handleModeChange]);
 
 	const { images, addImages, removeImage, clearImages, isProcessing } = useImageUpload({
 		onError: (error) => {
@@ -612,9 +639,11 @@ export default function Chat() {
 				return;
 			}
 
-			// When generation is active, send as conversational AI suggestion
+			// When generation is active, send as conversational AI suggestion.
+			// Include the current Plan/Build mode so the backend honours it.
 			sendWebSocketMessage(websocket, 'user_suggestion', {
 				message: newMessage,
+				mode: chatMode,
 				images: images.length > 0 ? images : undefined,
 			});
 			sendUserMessage(newMessage);
@@ -626,7 +655,7 @@ export default function Chat() {
 			// Ensure we scroll after sending our own message
 			requestAnimationFrame(() => scrollToBottom());
 		},
-		[newMessage, websocket, sendUserMessage, isChatDisabled, scrollToBottom, images, clearImages, limitsData, limitsLoading],
+		[newMessage, websocket, sendUserMessage, isChatDisabled, scrollToBottom, images, clearImages, limitsData, limitsLoading, chatMode],
 	);
 
 	const [progress, total] = useMemo((): [number, number] => {
@@ -870,6 +899,8 @@ export default function Chat() {
 					chatFormRef={chatFormRef}
 					limitsData={limitsData}
 					onConnectCloudflare={() => { window.location.href = `/oauth/login?return_url=${encodeURIComponent(window.location.href)}`; }}
+						mode={chatMode}
+						onModeChange={handleModeChange}
 				/>
 				</motion.div>
 

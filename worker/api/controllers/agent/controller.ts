@@ -2,7 +2,7 @@ import { WebSocketMessageResponses } from '../../../agents/constants';
 import { BaseController } from '../baseController';
 import { generateId } from '../../../utils/idGenerator';
 import { AgentState } from '../../../agents/core/state';
-import { BehaviorType, ProjectType } from '../../../agents/core/types';
+import { BehaviorType, ProjectType, ChatMode, resolveChatMode } from '../../../agents/core/types';
 import { getAgentStub, getTemplateForQuery } from '../../../agents';
 import {
     AgentConnectionData,
@@ -72,6 +72,9 @@ export class CodingAgentController extends BaseController {
             if (typeof query !== 'string' || query.trim().length === 0) {
                 return CodingAgentController.createErrorResponse('Missing "query" field in request body', 400);
             }
+            // Resolve chat mode. Default to 'plan' (analyze only) for safety so new
+            // sessions never mutate the project before the user reviews a plan.
+            const mode: ChatMode = resolveChatMode(body.mode);
             if (query.length > MAX_AGENT_QUERY_LENGTH) {
                 return CodingAgentController.createErrorResponse(
                     new SecurityError(
@@ -234,6 +237,7 @@ export class CodingAgentController extends BaseController {
                 onBlueprintChunk: (chunk: string) => {
                     writer.write({chunk});
                 },
+                mode,
             } as const;
 
             const initArgs = { ...baseInitArgs, templateInfo: { templateDetails, selection } }

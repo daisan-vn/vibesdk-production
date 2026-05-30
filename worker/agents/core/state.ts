@@ -3,7 +3,7 @@ import type { PhasicBlueprint, AgenticBlueprint, PhaseConceptType ,
     Blueprint,
 } from '../schemas';
 import type { InferenceMetadata } from '../inferutils/config.types';
-import { BehaviorType, Plan, ProjectType } from './types';
+import { BehaviorType, Plan, ProjectType, ChatMode, PlanStatus } from './types';
 
 export interface FileState extends FileOutputType {
     lastDiff: string;
@@ -68,6 +68,11 @@ export interface BaseProjectState {
     reviewingInitiated: boolean;
     cloudflareToken?: string; // Encrypted Cloudflare OAuth token blob (backend decrypts when needed)
     wsOrigin?: string; // Origin captured at WS upgrade time for token refresh
+
+    // Plan/Build mode
+    executionMode: ChatMode; // 'plan' (analyze only) or 'build' (implement). Defaults to 'plan'.
+    latestPlanId?: string;
+    latestPlanStatus?: PlanStatus;
 }
 
 /** Phasic agent state */

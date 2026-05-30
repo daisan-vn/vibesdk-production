@@ -250,7 +250,43 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
     }
 
     async build(): Promise<void> {
+        // Plan mode: never mutate the project. The blueprint (already generated and
+        // shown to the user) is the implementation plan. Surface a structured
+        // summary + CTA and stop before any code/file/deploy work happens.
+        if (this.state.executionMode === 'plan') {
+            this.presentPlanModeResponse();
+            return;
+        }
         await this.launchStateMachine();
+    }
+
+    private presentPlanModeResponse(): void {
+        const bp = this.state.blueprint;
+        const conversationId = IdGenerator.generateConversationId();
+        const frameworks = Array.isArray(bp?.frameworks) ? bp.frameworks.join(', ') : '';
+        const content = [
+            `## 📋 Implementation Plan — ${bp?.title || this.state.query}`,
+            ``,
+            `**Goal:** ${bp?.description || this.state.query}`,
+            frameworks ? `**Key modules / dependencies:** ${frameworks}` : '',
+            ``,
+            `_Plan mode — no files, database, configuration, migrations or deployments were changed._ The full structure (views, user flow, data model) is shown in the Blueprint panel above.`,
+            ``,
+            `**Review this plan, then switch to Build mode to implement.**`,
+        ].filter(Boolean).join('\n');
+
+        this.setState({
+            ...this.state,
+            shouldBeGenerating: false,
+            latestPlanId: conversationId,
+            latestPlanStatus: 'draft',
+        });
+
+        this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
+            message: content,
+            conversationId,
+            isStreaming: false,
+        });
     }
 
     private async launchStateMachine() {

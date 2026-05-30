@@ -1,5 +1,5 @@
 import { Agent, AgentContext, ConnectionContext } from "agents";
-import { AgentInitArgs, AgentSummary, DeployOptions, DeployResult, ExportOptions, ExportResult, DeploymentTarget, BehaviorType } from "./types";
+import { AgentInitArgs, AgentSummary, DeployOptions, DeployResult, ExportOptions, ExportResult, DeploymentTarget, BehaviorType, ChatMode } from "./types";
 import { AgenticState, AgentState, BaseProjectState, CurrentDevState, MAX_PHASES, PhasicState } from "./state";
 import { Blueprint } from "../schemas";
 import { BaseCodingBehavior } from "./behaviors/base";
@@ -87,6 +87,7 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
         generatedPhases: [],
         currentDevState: CurrentDevState.IDLE,
         phasesCounter: MAX_PHASES,
+        executionMode: 'plan' as ChatMode,
     } as AgentState;
 
     constructor(ctx: AgentContext, env: Env) {
@@ -141,7 +142,11 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
             ...initArgs,
             sandboxSessionId // Pass generated session ID to behavior
         });
-        
+
+        // Persist the chat mode (plan/build) chosen for this request. Defaults to
+        // 'plan' so nothing is built until the user reviews the plan.
+        this.setState({ ...this.state, executionMode: initArgs.mode ?? 'plan' });
+
         await this.saveToDatabase();
         
         return this.state;

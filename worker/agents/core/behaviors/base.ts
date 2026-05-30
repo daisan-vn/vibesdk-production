@@ -461,13 +461,16 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
     }
 
     private async buildWrapper() {
-        this.broadcast(WebSocketMessageResponses.GENERATION_STARTED, {
-            message: 'Starting code generation',
-            totalFiles: this.getTotalFiles()
-        });
-        this.logger.info('Starting code generation', {
-            totalFiles: this.getTotalFiles()
-        });
+        const planMode = this.state.executionMode === 'plan';
+        if (!planMode) {
+            this.broadcast(WebSocketMessageResponses.GENERATION_STARTED, {
+                message: 'Starting code generation',
+                totalFiles: this.getTotalFiles()
+            });
+            this.logger.info('Starting code generation', {
+                totalFiles: this.getTotalFiles()
+            });
+        }
         await this.ensureTemplateDetails();
         try {
             await this.build();
