@@ -21,6 +21,10 @@ Bộ tài liệu nền tảng để **"đào tạo" Daisan.ai** — nền tảng
 
 👉 [`system-prompts/`](system-prompts/README.md) — bộ **12 system prompt theo từng vai trò AI Agent** (Master, Planner, Designer, FE, BE, Database, Search, Content, Debug, QA, Refactor, Deploy) + [tài liệu orchestration workflow](system-prompts/DAISAN_AI_AGENT_WORKFLOW.md). Đây là lớp "hành vi" nạp vào pipeline Daisan.ai; mọi agent tham chiếu ngược về knowledge base bên dưới.
 
+## Prompt Library
+
+👉 [`prompt-library/`](prompt-library/README.md) — **75 prompt thực chiến** copy-paste dùng ngay cho Claude/Daisan.ai, chia 6 nhóm (vai trò · tạo giao diện · component · backend/API/DB · sửa lỗi · kiểm tra & nâng cấp).
+
 ## Cách sử dụng
 
 - **Cho đội IT / vận hành / kinh doanh Daisan:** đọc theo thứ tự 1→8 để nắm tầm nhìn → nghiệp vụ → chuẩn thực thi.
