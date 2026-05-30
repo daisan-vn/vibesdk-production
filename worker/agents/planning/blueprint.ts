@@ -337,6 +337,8 @@ interface BaseBlueprintGenerationArgs {
         chunk_size: number;
         onChunk: (chunk: string) => void;
     };
+    /** Optional Daisan specialist (Database/Search/Content) design brief to incorporate. */
+    specialistBrief?: string;
 }
 
 export interface PhasicBlueprintGenerationArgs extends BaseBlueprintGenerationArgs {
@@ -357,7 +359,7 @@ export async function generateBlueprint(args: AgenticBlueprintGenerationArgs): P
 export async function generateBlueprint(
     args: PhasicBlueprintGenerationArgs | AgenticBlueprintGenerationArgs
 ): Promise<Blueprint> {
-    const { env, inferenceContext, query, language, frameworks, templateDetails, templateMetaInfo, images, stream, projectType } = args;
+    const { env, inferenceContext, query, language, frameworks, templateDetails, templateMetaInfo, images, stream, projectType, specialistBrief } = args;
     const isAgentic = !templateDetails || !templateMetaInfo;
     
     try {
@@ -386,6 +388,10 @@ export async function generateBlueprint(
         const projectGuidance = getProjectTypeGuidance(projectType);
         if (projectGuidance) {
             systemPrompt = `${systemPrompt}\n\n${projectGuidance}`;
+        }
+        // Incorporate Daisan specialist (Database/Search/Content) design brief, if any.
+        if (specialistBrief) {
+            systemPrompt = `${systemPrompt}\n\n${specialistBrief}`;
         }
         
         const systemPromptMessage = createSystemMessage(generalSystemPromptBuilder(systemPrompt, {

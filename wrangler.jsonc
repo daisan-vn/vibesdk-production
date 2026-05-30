@@ -160,6 +160,7 @@
         "DISPATCH_NAMESPACE": "vibesdk-default-namespace",
         "ENABLE_READ_REPLICAS": "false",
         "CLOUDFLARE_AI_GATEWAY": "vibesdk-gateway",
+        "DAISAN_SPECIALISTS_ENABLED": "true",
         "PLATFORM_CAPABILITIES": {
             "features": {
                 "app": {
