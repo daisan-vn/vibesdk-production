@@ -25,6 +25,7 @@ export function setupModelConfigRoutes(app: Hono<AppEnv>): void {
     modelConfigRouter.delete('/:agentAction', setAuthLevel(AuthConfig.authenticated), adaptController(ModelConfigController, ModelConfigController.deleteModelConfig));
     modelConfigRouter.post('/test', setAuthLevel(AuthConfig.authenticated), adaptController(ModelConfigController, ModelConfigController.testModelConfig));
     modelConfigRouter.post('/reset-all', setAuthLevel(AuthConfig.authenticated), adaptController(ModelConfigController, ModelConfigController.resetAllConfigs));
+    modelConfigRouter.post('/preset', setAuthLevel(AuthConfig.authenticated), adaptController(ModelConfigController, ModelConfigController.applyPreset));
 
     // Mount the router under /api/model-configs
     app.route('/api/model-configs', modelConfigRouter);

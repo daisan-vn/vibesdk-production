@@ -6,6 +6,7 @@ import { sendWebSocketMessage } from '../utils/websocket-helpers';
 import type { ImageAttachment } from '@/api-types';
 import { type UsageSummary } from '@/hooks/use-limits';
 import { ModeSelector, type ChatMode } from './mode-selector';
+import { ModelQualitySelector } from './model-quality-selector';
 
 interface ChatInputProps {
 	// Form state
@@ -124,6 +125,7 @@ export function ChatInput({
 			variant="compact"
 			rightActions={
 				<div className="flex items-center gap-2">
+					<ModelQualitySelector disabled={isChatDisabled} />
 					{modeSelector}
 					{stopButton}
 				</div>

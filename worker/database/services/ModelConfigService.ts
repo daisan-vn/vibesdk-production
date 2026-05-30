@@ -6,7 +6,7 @@
 import { BaseService } from './BaseService';
 import { UserModelConfig, NewUserModelConfig, userModelConfigs } from '../schema';
 import { eq, and } from 'drizzle-orm';
-import { AgentActionKey, ModelConfig } from '../../agents/inferutils/config.types';
+import { AgentActionKey, ModelConfig, AIModels } from '../../agents/inferutils/config.types';
 import { AGENT_CONFIG, AGENT_CONSTRAINTS } from '../../agents/inferutils/config';
 import type { ReasoningEffort } from '../../agents/inferutils/config.types';
 import { generateId } from '../../utils/idGenerator';
@@ -261,6 +261,62 @@ export class ModelConfigService extends BaseService {
 	 * Update or create a user model configuration.
 	 * Validates constraints - throws on violation.
 	 */
+	/**
+	 * Apply a one-click quality preset across the agent actions that determine
+	 * app richness (planning + implementation). Lets users trade speed vs quality
+	 * from the chat screen without editing each model config by hand.
+	 *  - 'balanced': revert these actions to platform defaults
+	 *  - 'fast': Gemini Flash, low reasoning (fastest / cheapest)
+	 *  - 'max': Gemini Pro for blueprint + first build, high reasoning (best results)
+	 */
+	async applyQualityPreset(userId: string, preset: 'fast' | 'balanced' | 'max'): Promise<void> {
+		const actions: AgentActionKey[] = [
+			'blueprint',
+			'phaseGeneration',
+			'firstPhaseImplementation',
+			'phaseImplementation',
+		];
+
+		const presets: Record<'fast' | 'max', Partial<Record<AgentActionKey, Partial<ModelConfig>>>> = {
+			fast: {
+				blueprint: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'high', max_tokens: 48000 },
+				phaseGeneration: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'low' },
+				firstPhaseImplementation: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'low', max_tokens: 48000 },
+				phaseImplementation: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'low', max_tokens: 48000 },
+			},
+			max: {
+				blueprint: {
+					name: AIModels.GEMINI_3_PRO_PREVIEW,
+					reasoning_effort: 'high',
+					max_tokens: 64000,
+					fallbackModel: AIModels.GEMINI_3_FLASH_PREVIEW,
+				},
+				phaseGeneration: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'high' },
+				firstPhaseImplementation: {
+					name: AIModels.GEMINI_3_PRO_PREVIEW,
+					reasoning_effort: 'high',
+					max_tokens: 64000,
+					fallbackModel: AIModels.GEMINI_3_FLASH_PREVIEW,
+				},
+				phaseImplementation: { name: AIModels.GEMINI_3_FLASH_PREVIEW, reasoning_effort: 'high', max_tokens: 64000 },
+			},
+		};
+
+		if (preset === 'balanced') {
+			// Revert these actions to platform defaults
+			for (const action of actions) {
+				await this.deleteUserModelConfig(userId, action);
+			}
+			return;
+		}
+
+		const def = presets[preset];
+		for (const action of actions) {
+			const cfg = def[action];
+			if (cfg) await this.upsertUserModelConfig(userId, action, cfg);
+		}
+	}
+
 	async upsertUserModelConfig(
 		userId: string,
 		agentActionName: AgentActionKey,

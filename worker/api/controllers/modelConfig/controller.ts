@@ -346,6 +346,33 @@ export class ModelConfigController extends BaseController {
     }
 
     /**
+     * Apply a one-click quality preset (fast | balanced | max).
+     * POST /api/model-configs/preset  { preset }
+     */
+    static async applyPreset(request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<{ preset: string }>>> {
+        try {
+            const user = context.user!;
+            let body: { preset?: string };
+            try {
+                body = (await request.json()) as { preset?: string };
+            } catch {
+                return ModelConfigController.createErrorResponse<{ preset: string }>('Invalid JSON body', 400);
+            }
+            const preset = body.preset;
+            if (preset !== 'fast' && preset !== 'balanced' && preset !== 'max') {
+                return ModelConfigController.createErrorResponse<{ preset: string }>('Invalid preset. Use fast, balanced or max.', 400);
+            }
+
+            const modelConfigService = new ModelConfigService(env);
+            await modelConfigService.applyQualityPreset(user.id, preset);
+            return ModelConfigController.createSuccessResponse({ preset });
+        } catch (error) {
+            this.logger.error('Error applying quality preset:', error);
+            return ModelConfigController.createErrorResponse<{ preset: string }>('Failed to apply quality preset', 500);
+        }
+    }
+
+    /**
      * Get default configurations
      * GET /api/model-configs/defaults
      */

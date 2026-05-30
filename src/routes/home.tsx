@@ -18,6 +18,7 @@ import { useLimitsContext } from '@/contexts/limits-context';
 import { checkCanSendPrompt } from '@/utils/usage-limit-checker';
 import { PromptBox } from '@/components/prompt-box';
 import { MeetDaisanSection, TemplatesTeaser, FinalCTA, LandingFooter } from './home-sections';
+import { ModelQualitySelector } from './chat/components/model-quality-selector';
 
 export default function Home() {
 	const navigate = useNavigate();
@@ -204,14 +205,16 @@ export default function Home() {
 							variant="expanded"
 							submitIcon={user && usageLimitsLoading ? <Loader2 className="animate-spin" /> : <ArrowRight />}
 							leftActions={
-								showModeSelector ? (
-									<ProjectModeSelector
-										value={projectMode}
-										onChange={setProjectMode}
-										modes={modeOptions}
-										className="flex-1"
-									/>
-								) : undefined
+								<div className="flex items-center gap-2">
+									{showModeSelector && (
+										<ProjectModeSelector
+											value={projectMode}
+											onChange={setProjectMode}
+											modes={modeOptions}
+										/>
+									)}
+									<ModelQualitySelector />
+								</div>
 							}
 						/>
 

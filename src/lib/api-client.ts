@@ -1064,6 +1064,15 @@ class ApiClient {
 		);
 	}
 
+	async applyModelPreset(
+		preset: 'fast' | 'balanced' | 'max',
+	): Promise<ApiResponse<{ preset: string }>> {
+		return this.request<{ preset: string }>(`/api/model-configs/preset`, {
+			method: 'POST',
+			body: { preset },
+		});
+	}
+
 	async getDeploymentHistory(
 		agentId: string,
 	): Promise<ApiResponse<DeploymentHistoryData>> {
