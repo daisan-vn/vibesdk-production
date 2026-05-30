@@ -197,7 +197,17 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
 
         // Infrastructure setup
         await this.gitInit();
-        
+
+        // Create the app record UP-FRONT (before the slow blueprint/bootstrapping
+        // phase). Otherwise the ownership check has no record to match during
+        // generation, so refreshing the page mid-build wrongly shows
+        // "You can only access your own resources".
+        await this.ensureAppRecordEarly(
+            inferenceContext.metadata.agentId,
+            inferenceContext.metadata.userId,
+            initArgs.query,
+        );
+
         // Let behavior handle all state initialization (blueprint, projectName, etc.)
         await this.behavior.initialize({
             ...initArgs,
@@ -436,24 +446,66 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
         return this.behavior.importTemplate(templateName);
     }
     
+    /**
+     * Create a minimal app record at the very start of generation so ownership
+     * checks succeed while the blueprint is still being generated. Idempotent:
+     * skips if a record already exists (or for anonymous users).
+     */
+    protected async ensureAppRecordEarly(agentId: string, userId: string | undefined, query: string): Promise<void> {
+        if (!userId || !agentId) return; // anonymous / no id — nothing to own
+        try {
+            const appService = new AppService(this.env);
+            const ownership = await appService.checkAppOwnership(agentId, userId);
+            if (ownership.exists) return; // already created
+            await appService.createApp({
+                id: agentId,
+                userId,
+                sessionToken: null,
+                title: (query || 'New app').substring(0, 100),
+                description: null,
+                originalPrompt: query || '',
+                finalPrompt: query || '',
+                framework: null,
+                visibility: 'private',
+                status: 'generating',
+                createdAt: new Date(),
+                updatedAt: new Date(),
+            });
+            this.logger().info(`Pre-created app record for agent ${agentId} (ownership)`);
+        } catch (error) {
+            this.logger().warn('Early app record creation failed (non-fatal)', { error });
+        }
+    }
+
     protected async saveToDatabase() {
         this.logger().info(`Saving agent ${this.getAgentId()} to database`);
-        // Save the app to database (authenticated users only)
+        // The record is usually pre-created in ensureAppRecordEarly(); prefer an
+        // UPDATE with blueprint details, fall back to INSERT if it doesn't exist.
         const appService = new AppService(this.env);
-        await appService.createApp({
-            id: this.state.metadata.agentId,
-            userId: this.state.metadata.userId,
-            sessionToken: null,
-            title: this.state.blueprint.title || this.state.query.substring(0, 100),
+        const blueprintTitle = this.state.blueprint.title || this.state.query.substring(0, 100);
+        const blueprintFramework = this.state.blueprint.frameworks.join(',');
+        const updated = await appService.updateApp(this.state.metadata.agentId, {
+            title: blueprintTitle,
             description: this.state.blueprint.description,
-            originalPrompt: this.state.query,
-            finalPrompt: this.state.query,
-            framework: this.state.blueprint.frameworks.join(','),
-            visibility: 'private',
-            status: 'generating',
+            framework: blueprintFramework,
+            updatedAt: new Date(),
+        });
+        if (!updated) {
+            await appService.createApp({
+                id: this.state.metadata.agentId,
+                userId: this.state.metadata.userId,
+                sessionToken: null,
+                title: blueprintTitle,
+                description: this.state.blueprint.description,
+                originalPrompt: this.state.query,
+                finalPrompt: this.state.query,
+                framework: blueprintFramework,
+                visibility: 'private',
+                status: 'generating',
                 createdAt: new Date(),
-            updatedAt: new Date()
+                updatedAt: new Date(),
             });
+        }
         this.logger().info(`App saved successfully to database for agent ${this.state.metadata.agentId}`, {
             agentId: this.state.metadata.agentId,
             userId: this.state.metadata.userId,
