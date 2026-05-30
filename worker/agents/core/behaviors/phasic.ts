@@ -320,6 +320,13 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             let executionResults: PhaseExecutionResult;
             // State machine loop - continues until IDLE state
             while (currentDevState !== CurrentDevState.IDLE) {
+                // Honour a stop request between phases. cancelCurrentInference() only
+                // aborts an in-flight model call; this closes the gap when the user
+                // hits Stop in the brief window between phases.
+                if (!this.state.shouldBeGenerating) {
+                    this.logger.info('[generateAllFiles] Stop requested — exiting state machine');
+                    break;
+                }
                 this.logger.info(`[generateAllFiles] Executing state: ${currentDevState}`);
                 switch (currentDevState) {
                     case CurrentDevState.PHASE_GENERATING:
