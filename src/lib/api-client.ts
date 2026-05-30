@@ -1074,6 +1074,41 @@ class ApiClient {
 		});
 	}
 
+	/**
+	 * Stream an advisory answer token-by-token. Calls onChunk for each piece.
+	 * Reuses the same auth (session token + CSRF + cookies) as other requests.
+	 */
+	async streamAdvisory(
+		prompt: string,
+		history: { role: 'user' | 'assistant'; content: string }[] | undefined,
+		onChunk: (chunk: string) => void,
+		signal?: AbortSignal,
+	): Promise<void> {
+		this.ensureSessionToken();
+		if (!(await this.ensureCsrfToken('POST'))) {
+			throw new ApiError(500, 'Internal Error', 'Failed to obtain CSRF token', '/api/advisory/stream');
+		}
+		const authHeaders = await this.getAuthHeaders();
+		const res = await fetch(`${this.baseUrl}/api/advisory/stream`, {
+			method: 'POST',
+			headers: { ...this.defaultHeaders, ...authHeaders, 'Content-Type': 'application/json' },
+			credentials: 'include',
+			body: JSON.stringify(history ? { prompt, history } : { prompt }),
+			signal,
+		});
+		if (!res.ok || !res.body) {
+			const msg = await res.text().catch(() => 'Advisory stream failed');
+			throw new ApiError(res.status, 'Advisory error', msg || 'Advisory stream failed', '/api/advisory/stream');
+		}
+		const reader = res.body.getReader();
+		const decoder = new TextDecoder();
+		for (;;) {
+			const { done, value } = await reader.read();
+			if (done) break;
+			if (value) onChunk(decoder.decode(value, { stream: true }));
+		}
+	}
+
 	async applyModelPreset(
 		preset: 'fast' | 'balanced' | 'max' | 'custom',
 		model?: string,

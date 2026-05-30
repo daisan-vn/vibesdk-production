@@ -10,4 +10,5 @@ import { adaptController } from '../honoAdapter';
  */
 export function setupAdvisoryRoutes(app: Hono<AppEnv>): void {
 	app.post('/api/advisory', setAuthLevel(AuthConfig.authenticated), adaptController(AdvisoryController, AdvisoryController.chat));
+	app.post('/api/advisory/stream', setAuthLevel(AuthConfig.authenticated), adaptController(AdvisoryController, AdvisoryController.chatStream));
 }
