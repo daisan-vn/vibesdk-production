@@ -17,6 +17,10 @@ Bộ tài liệu nền tảng để **"đào tạo" Daisan.ai** — nền tảng
 | 7 | [ERROR_PLAYBOOK.md](ERROR_PLAYBOOK.md) | Sổ tay lỗi: blank screen, import/export, router, Tailwind, render, API, state, responsive, hydration + quy trình debug |
 | 8 | [COMPONENT_LIBRARY_GUIDE.md](COMPONENT_LIBRARY_GUIDE.md) | Thư viện 21 component chuẩn: Header, Footer, Sidebar, ProductCard, DataTable, Form, Modal, EmptyState... |
 
+## System prompts đa-agent
+
+👉 [`system-prompts/`](system-prompts/README.md) — bộ **12 system prompt theo từng vai trò AI Agent** (Master, Planner, Designer, FE, BE, Database, Search, Content, Debug, QA, Refactor, Deploy) + [tài liệu orchestration workflow](system-prompts/DAISAN_AI_AGENT_WORKFLOW.md). Đây là lớp "hành vi" nạp vào pipeline Daisan.ai; mọi agent tham chiếu ngược về knowledge base bên dưới.
+
 ## Cách sử dụng
 
 - **Cho đội IT / vận hành / kinh doanh Daisan:** đọc theo thứ tự 1→8 để nắm tầm nhìn → nghiệp vụ → chuẩn thực thi.
