@@ -55,6 +55,16 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         implementPhase: new PhaseImplementationOperation(),
     };
 
+    private isFastPathRequest(phaseConcept: PhaseConceptType, userContext?: UserContext): boolean {
+        const suggestion = userContext?.suggestions?.length === 1 ? userContext.suggestions[0] : '';
+        const text = (suggestion || this.state.query || '').trim();
+        const words = text ? text.split(/\s+/).filter(Boolean).length : 0;
+        const isShort = text.length > 0 && text.length <= 140 && words <= 20;
+        const hasImages = !!(userContext?.images && userContext.images.length > 0);
+        const smallPhase = (phaseConcept.files?.length || 0) <= 4;
+        return isShort && !hasImages && smallPhase;
+    }
+
     /**
      * Initialize the code generator with project blueprint and template
      * Sets up services and begins deployment process
@@ -465,10 +475,16 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             });
             
             // Prepare issues for implementation
-            const currentIssues = await this.fetchAllIssues(true);
+            const fastPath = this.isFastPathRequest(phaseConcept, userContext);
+            const currentIssues = fastPath
+                ? {
+                    runtimeErrors: await this.fetchRuntimeErrors(true),
+                    staticAnalysis: { success: true, lint: { issues: [] }, typecheck: { issues: [] } },
+                }
+                : await this.fetchAllIssues(true);
             
             // Implement the phase with user context (suggestions and images)
-            await this.implementPhase(phaseConcept, currentIssues, userContext);
+            await this.implementPhase(phaseConcept, currentIssues, userContext, true, !fastPath);
     
             this.logger.info(`Phase ${phaseConcept.name} completed, generating next phase`);
 

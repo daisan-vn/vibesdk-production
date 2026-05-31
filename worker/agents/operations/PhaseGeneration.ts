@@ -257,7 +257,21 @@ ${serialized}`;
     return serialized;
 };
 
-const userPromptFormatter = (isFinal: boolean, issues: IssueReport, userSuggestions?: string[], isUserSuggestedPhase?: boolean) => {
+const isShortSimpleRequest = (text: string | undefined): boolean => {
+    if (!text) return false;
+    const trimmed = text.trim();
+    if (!trimmed) return false;
+    const words = trimmed.split(/\s+/).filter(Boolean);
+    return trimmed.length <= 140 && words.length <= 20;
+};
+
+const userPromptFormatter = (
+    isFinal: boolean,
+    issues: IssueReport,
+    userSuggestions?: string[],
+    isUserSuggestedPhase?: boolean,
+    preferFastPath?: boolean,
+) => {
     let prompt = isFinal ? LAST_PHASE_PROMPT : NEXT_PHASE_USER_PROMPT;
     prompt = prompt
         .replaceAll('{{issues}}', issuesPromptFormatterWithGuidelines(issues))
@@ -267,6 +281,19 @@ const userPromptFormatter = (isFinal: boolean, issues: IssueReport, userSuggesti
         prompt = prompt.replaceAll('{{generateInstructions}}', 'User submitted feedback. Please thoroughly review the user needs and generate the next phase of the application accordingly, completely addressing their pain points in the right and proper way. And name the phase accordingly.');
     } else {
         prompt = prompt.replaceAll('{{generateInstructions}}', 'Generate the next phase of the application.');
+    }
+
+    if (preferFastPath && !isFinal) {
+        prompt += `
+
+<FAST_PATH_HINT>
+This request is short and likely narrow in scope.
+Prefer a lightweight, quick-to-ship phase:
+- Keep scope tight to the explicit user ask
+- Prefer editing existing files over creating many new files
+- Target <= 4 files in this phase unless a runtime blocker requires more
+- Avoid broad scaffold/refactor work in this phase
+</FAST_PATH_HINT>`;
     }
     
     return PROMPT_UTILS.verifyPrompt(prompt);
@@ -289,7 +316,19 @@ export class PhaseGenerationOperation extends AgentOperation<PhasicGenerationCon
             logger.info(`Generating next phase ${suggestionsInfo}${imagesInfo} (isFinal: ${isFinal})`);
     
             // Create user message with optional images
-            const userPrompt = userPromptFormatter(isFinal, issues, userContext?.suggestions, isUserSuggestedPhase);
+            const shortQuery = isShortSimpleRequest(context.query);
+            const shortSuggestion = (userContext?.suggestions?.length === 1)
+                ? isShortSimpleRequest(userContext.suggestions[0])
+                : false;
+            const preferFastPath = !isFinal && issues.runtimeErrors.length === 0 && (shortQuery || shortSuggestion);
+
+            const userPrompt = userPromptFormatter(
+                isFinal,
+                issues,
+                userContext?.suggestions,
+                isUserSuggestedPhase,
+                preferFastPath,
+            );
             const userMessage = userContext?.images && userContext.images.length > 0
                 ? createMultiModalUserMessage(
                     userPrompt,
