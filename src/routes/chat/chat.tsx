@@ -12,6 +12,7 @@ import { MobileChatHeader } from './components/mobile-chat-header';
 import { BuildStatusBar } from './components/build-status-bar';
 import { BlueprintCard } from './components/blueprint-card';
 import { BuildLogFeed } from './components/build-log-feed';
+import { BuildResultPanel } from './components/build-result-panel';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -778,6 +779,16 @@ export default function Chat() {
 		el?.scrollIntoView({ block: 'nearest' });
 	}, []);
 
+	const handleAutoFix = useCallback(() => {
+		if (!websocket) return;
+		sendWebSocketMessage(websocket, 'user_suggestion', {
+			message: 'Please fix the errors and warnings found during the build checks.',
+			mode: 'build',
+		});
+		sendUserMessage('Auto-fix the build issues');
+		requestAnimationFrame(() => scrollToBottom());
+	}, [websocket, sendUserMessage, scrollToBottom]);
+
 	const [progress, total] = useMemo((): [number, number] => {
 		// Calculate phase progress instead of file progress
 		const completedPhases = phaseTimeline.filter(p => p.status === 'completed').length;
@@ -984,6 +995,25 @@ export default function Chat() {
 							{/* Readable build activity (Summary / Technical) */}
 							{behaviorType !== 'agentic' && phaseTimeline.length > 0 && (
 								<BuildLogFeed phaseTimeline={phaseTimeline} />
+							)}
+
+							{/* Checks + changed files + result actions */}
+							{behaviorType !== 'agentic' && files.length > 0 && (
+								<BuildResultPanel
+									buildState={buildJob?.state}
+									isBuilding={isBuildActive}
+									runtimeErrorCount={runtimeErrorCount}
+									staticIssueCount={staticIssueCount}
+									files={files}
+									previewUrl={previewUrl}
+									onOpenFile={handleFileClick}
+									onOpenPreview={() => {
+										setView('preview');
+										if (isMobile) setMobilePreviewOpen(true);
+									}}
+									onEditWithAI={handleAddRequirement}
+									onAutoFix={handleAutoFix}
+								/>
 							)}
 
 							{/* Deployment and Generation Controls - Only for phasic mode */}
