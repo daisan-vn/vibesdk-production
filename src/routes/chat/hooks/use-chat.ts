@@ -353,7 +353,7 @@ export function useChat({
 					if (isRetry) {
 						// Clear old messages on reconnect to prevent duplicates
 						setMessages(() => [
-							createAIMessage('websocket_reconnected', 'Seems we lost connection for a while there. Fixed now!', true)
+							createAIMessage('websocket_reconnected', 'Seems we lost connection for a while there. Fixed now!')
 						]);
 					}
 
@@ -372,6 +372,12 @@ export function useChat({
 
 				ws.addEventListener('message', (event) => {
 					try {
+						// Receiving frames means this socket is actually connected.
+						if (connectionStatus.current !== 'connected') {
+							connectionStatus.current = 'connected';
+						}
+						setConnectionState('connected');
+
 						const message: WebSocketMessage = JSON.parse(event.data);
 						handleWebSocketMessage(ws, message);
 					} catch (parseError) {
