@@ -129,26 +129,29 @@ const DEFAULT_AGENT_CONFIG: AgentConfig = {
         temperature: 0.6,
     },
     blueprint: {
-        name: AIModels.GEMINI_3_FLASH_PREVIEW,
+        // Reliable frontier model for the plan; falls back to a STABLE (non-preview)
+        // Gemini, never a preview model. Preview models were stalling builds at 0/1.
+        name: AIModels.CLAUDE_4_5_SONNET,
         reasoning_effort: 'high',
         max_tokens: 64000,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
         temperature: 1,
     },
     projectSetup: {
-        name: AIModels.GEMINI_3_FLASH_PREVIEW,
+        // Stable (non-preview) for setup commands so install never silently fails.
+        name: AIModels.GEMINI_2_5_FLASH,
         ...SHARED_IMPLEMENTATION_CONFIG,
     },
     phaseGeneration: {
-        name: AIModels.GEMINI_3_FLASH_PREVIEW,
+        name: AIModels.CLAUDE_4_5_SONNET,
         ...SHARED_IMPLEMENTATION_CONFIG,
     },
     firstPhaseImplementation: {
-        name: AIModels.GEMINI_3_FLASH_PREVIEW,
+        name: AIModels.CLAUDE_4_5_SONNET,
         ...SHARED_IMPLEMENTATION_CONFIG,
     },
     phaseImplementation: {
-        name: AIModels.GEMINI_3_FLASH_PREVIEW,
+        name: AIModels.CLAUDE_4_5_SONNET,
         ...SHARED_IMPLEMENTATION_CONFIG,
     },
     conversationalResponse: {

@@ -311,17 +311,22 @@ export class PhaseGenerationOperation extends AgentOperation<PhasicGenerationCon
                 context: options.inferenceContext,
                 reasoning_effort: (userContext?.suggestions || issues.runtimeErrors.length > 0) ? AGENT_CONFIG.phaseGeneration.reasoning_effort == 'low' ? 'medium' : 'high' : undefined,
                 format: 'markdown',
+                // Surface the real underlying failure (429 / empty / malformed) instead
+                // of silently returning null — see the explicit throw below.
+                throwOnExhaustion: true,
             });
-    
+
+            // IMPORTANT: do NOT fake a final empty phase here. The previous code
+            // returned `{ lastPhase: true, files: [] }` on failure, which made the
+            // engine "finish" with 0 phases — the root cause of the "0/1 phases"
+            // stall where no code is generated and Deploy never enables. Fail loudly
+            // so the build-job goes to `failed` and the user can Retry.
             if (!results || !results.object) {
                 logger.error('Phase generation returned no result after all retries');
-                return {
-                    name: '',
-                    description: '',
-                    files: [],
-                    lastPhase: true,
-                    installCommands: [],
-                };
+                throw new Error(
+                    'Phase generation failed: the model returned no usable result after retries and fallback. ' +
+                    'Stopping the build (marked failed) instead of finishing with 0 phases.',
+                );
             }
 
             const concept = results.object;
