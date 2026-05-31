@@ -647,6 +647,7 @@ export function useChat({
 		urlChatId,
 		userImages,
 		userQuery,
+		executionMode,
 	]);
 
     // Mount/unmount: enable/disable reconnection and clear pending retries

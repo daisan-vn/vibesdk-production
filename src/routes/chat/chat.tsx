@@ -739,7 +739,7 @@ export default function Chat() {
 			// Ensure we scroll after sending our own message
 			requestAnimationFrame(() => scrollToBottom());
 		},
-		[newMessage, websocket, sendUserMessage, isChatDisabled, scrollToBottom, images, clearImages, limitsData, limitsLoading, chatMode],
+		[newMessage, websocket, sendUserMessage, scrollToBottom, images, clearImages, limitsData, limitsLoading, chatMode],
 	);
 
 	// Themes panel: apply a design-token change via the Build pipeline.
