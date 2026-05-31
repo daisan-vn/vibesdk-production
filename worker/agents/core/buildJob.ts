@@ -12,6 +12,7 @@
 export type BuildJobState =
 	| 'queued'
 	| 'analyzing'
+	| 'needs_clarification'
 	| 'planning'
 	| 'blueprint_ready'
 	| 'generating_code'
@@ -101,7 +102,12 @@ export function isTerminalState(state: BuildJobState): boolean {
 }
 
 export function isWorkingState(state: BuildJobState): boolean {
-	return !TERMINAL.has(state) && state !== 'reconnecting' && state !== 'queued';
+	return (
+		!TERMINAL.has(state) &&
+		state !== 'reconnecting' &&
+		state !== 'queued' &&
+		state !== 'needs_clarification'
+	);
 }
 
 export type BuildLogFn = (
@@ -132,9 +138,10 @@ export function createBuildJob(now: number): BuildJob {
  */
 const ALLOWED: Record<BuildJobState, BuildJobState[]> = {
 	queued: ['analyzing', 'planning'],
-	analyzing: ['planning', 'blueprint_ready', 'generating_code'],
-	planning: ['blueprint_ready', 'generating_code', 'analyzing'],
-	blueprint_ready: ['generating_code'],
+	analyzing: ['needs_clarification', 'planning', 'blueprint_ready', 'generating_code'],
+	needs_clarification: ['analyzing', 'planning', 'blueprint_ready', 'generating_code'],
+	planning: ['needs_clarification', 'blueprint_ready', 'generating_code', 'analyzing'],
+	blueprint_ready: ['needs_clarification', 'generating_code'],
 	generating_code: [
 		'generating_code',
 		'installing_dependencies',

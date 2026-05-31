@@ -153,6 +153,20 @@ describe('buildJob state machine', () => {
 		expect(job.state).toBe('blueprint_ready');
 	});
 
+	it('needs_clarification pauses without timing out or being terminal', () => {
+		let job = createBuildJob(clock);
+		job = feed(job, 'generation_started'); // analyzing
+		job = transition(job, 'needs_clarification', tick(), { note: 'awaiting answer' });
+		expect(job.state).toBe('needs_clarification');
+		expect(isTerminalState(job.state)).toBe(false);
+		// No timeout while waiting for the user.
+		const t = checkTimeout(job, job.lastTransitionAt + 60 * 60 * 1000);
+		expect(t).toBeNull();
+		// Resumes into the build.
+		job = feed(job, 'phase_implementing');
+		expect(job.state).toBe('generating_code');
+	});
+
 	it('logs every transition through the provided logger', () => {
 		const logs: string[] = [];
 		const log = (_l: string, m: string) => logs.push(m);

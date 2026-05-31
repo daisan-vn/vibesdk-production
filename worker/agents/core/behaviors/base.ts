@@ -10,6 +10,8 @@ import { ExecuteCommandsResponse, PreviewType, RuntimeError, StaticAnalysisRespo
 import { BaseProjectState, AgenticState, FileState } from '../state';
 import { AllIssues, AgentSummary, AgentInitArgs, BehaviorType, DeploymentTarget, ProjectType } from '../types';
 import { WebSocketMessageResponses } from '../../constants';
+import { analyzeForClarification } from '../../planning/clarify';
+import { createBuildJob, transition as buildTransition } from '../buildJob';
 import { ProjectSetupAssistant } from '../../assistants/projectsetup';
 import { UserConversationProcessor, RenderToolCall } from '../../operations/UserConversationProcessor';
 import { FileRegenerationOperation } from '../../operations/FileRegeneration';
@@ -460,7 +462,78 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
         return this.state.mvpGenerated;
     }
 
+    /**
+     * Intake clarification gate (flag-gated, fail-safe). Runs once, in build
+     * mode, after the blueprint exists but before code generation. If important
+     * info is missing it asks 1-3 questions and PAUSES (returns true) without
+     * emitting GENERATION_STARTED/COMPLETE; the user's reply re-enters
+     * generateAllFiles and proceeds (clarificationAsked is now set).
+     * Any failure resolves to "proceed" so a build is never blocked.
+     */
+    protected async maybeRequestClarification(): Promise<boolean> {
+        try {
+            const flag = (this.env as unknown as Record<string, string | undefined>).DAISAN_CLARIFY_ENABLED;
+            if (flag !== 'true') return false;
+            if (this.state.executionMode === 'plan') return false;
+            if (this.state.clarificationAsked) return false;
+            if (this.state.mvpGenerated) return false;
+            const query = this.state.query;
+            if (!query || !query.trim()) return false;
+
+            const result = await analyzeForClarification({
+                env: this.env,
+                inferenceContext: this.getInferenceContext(),
+                query,
+                projectType: this.state.projectType,
+            });
+
+            // Mark decided either way so we never re-run the analysis on resume.
+            if (!result.needsClarification || result.questions.length === 0) {
+                this.setState({ ...this.state, clarificationAsked: true });
+                return false;
+            }
+
+            const content = [
+                'Mình cần làm rõ một vài điểm để build cho đúng ý bạn:',
+                '',
+                ...result.questions.map((q, i) => `${i + 1}. ${q}`),
+                '',
+                'Trả lời giúp mình nhé (hoặc gõ “build luôn” nếu muốn mình tự quyết).',
+            ].join('\n');
+            const conversationId = crypto.randomUUID();
+
+            // Pause: persist decision + flip the build-job to needs_clarification.
+            const prevJob = this.state.buildJob ?? createBuildJob(Date.now());
+            const nextJob = buildTransition(prevJob, 'needs_clarification', Date.now(), {
+                note: 'awaiting user clarification',
+            });
+            this.setState({
+                ...this.state,
+                clarificationAsked: true,
+                shouldBeGenerating: false,
+                buildJob: nextJob,
+            });
+
+            this.broadcast(WebSocketMessageResponses.BUILD_STATE, { buildJob: nextJob });
+            this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
+                message: content,
+                conversationId,
+                isStreaming: false,
+            });
+            this.logger.info('Requested intake clarification', { questions: result.questions.length });
+            return true;
+        } catch (error) {
+            this.logger.warn('Clarification gate failed — proceeding with build', { error });
+            return false;
+        }
+    }
+
     private async buildWrapper() {
+        // Intake clarification (flag-gated, fail-safe). Pauses before any
+        // GENERATION_STARTED so the state machine isn't falsely marked complete.
+        if (await this.maybeRequestClarification()) {
+            return;
+        }
         const planMode = this.state.executionMode === 'plan';
         if (!planMode) {
             this.broadcast(WebSocketMessageResponses.GENERATION_STARTED, {

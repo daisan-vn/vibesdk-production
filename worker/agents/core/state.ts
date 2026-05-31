@@ -78,6 +78,10 @@ export interface BaseProjectState {
     // Canonical, persisted build-job state machine (source of truth for
     // progress / deployability / done). See worker/agents/core/buildJob.ts
     buildJob?: BuildJob;
+
+    // Intake clarification (flag-gated): true once we've decided whether to ask
+    // clarifying questions, so we never re-run the analysis on resume.
+    clarificationAsked?: boolean;
 }
 
 /** Phasic agent state */

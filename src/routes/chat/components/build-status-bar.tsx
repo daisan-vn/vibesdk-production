@@ -23,6 +23,7 @@ function describe(state: BuildJobState): { label: string; tone: Tone } {
 	switch (state) {
 		case 'queued': return { label: 'Queued', tone: 'idle' };
 		case 'analyzing': return { label: 'Analyzing request…', tone: 'running' };
+		case 'needs_clarification': return { label: 'Daisan needs a quick answer — see the question above', tone: 'warn' };
 		case 'planning': return { label: 'Planning…', tone: 'running' };
 		case 'blueprint_ready': return { label: 'Blueprint ready · building', tone: 'running' };
 		case 'generating_code': return { label: 'Generating code', tone: 'running' };

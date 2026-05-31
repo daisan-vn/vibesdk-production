@@ -161,6 +161,7 @@
         "ENABLE_READ_REPLICAS": "false",
         "CLOUDFLARE_AI_GATEWAY": "vibesdk-gateway",
         "DAISAN_SPECIALISTS_ENABLED": "true",
+        "DAISAN_CLARIFY_ENABLED": "false",
         "PLATFORM_CAPABILITIES": {
             "features": {
                 "app": {
