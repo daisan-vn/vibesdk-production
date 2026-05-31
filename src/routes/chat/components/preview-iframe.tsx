@@ -23,8 +23,8 @@ interface LoadState {
     previewType?: 'sandbox' | 'dispatcher';
 }
 
-const MAX_RETRIES = 6;
-const REDEPLOY_AFTER_ATTEMPT = 3;
+const MAX_RETRIES = 10;
+const REDEPLOY_AFTER_ATTEMPT = 5;
 const POST_LOAD_WAIT_SANDBOX = 0;
 const POST_LOAD_WAIT_DISPATCHER = 0;
 
@@ -181,6 +181,7 @@ export const PreviewIframe = forwardRef<HTMLIFrameElement, PreviewIframeProps>(
 
 			// Test availability
 			const previewType = await testAvailability(url);
+            const isTunnelPreview = /trycloudflare\.com/i.test(url);
 
 			if (previewType) {
 				// Success: put component into postload state, keep loading UI visible
@@ -206,7 +207,9 @@ export const PreviewIframe = forwardRef<HTMLIFrameElement, PreviewIframeProps>(
 			} else {
 				// Fallback: after a few failed availability checks (often CORS/HEAD false negatives),
 				// try loading the iframe directly instead of keeping the user blocked.
-				if (attempt >= 2) {
+				// Tunnel previews are prone to transient 502 while origin bootstraps;
+				// keep retrying instead of surfacing a premature direct load.
+				if (!isTunnelPreview && attempt >= 2) {
 					console.log('Preview probe unavailable - switching to direct iframe load fallback');
 					setLoadState({
 						status: 'postload',
