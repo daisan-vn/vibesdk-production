@@ -915,7 +915,7 @@ export class SandboxSdkClient extends BaseSandboxService {
         projectName: string,
         initCommand: string,
         localEnvVars?: Record<string, string>,
-    ): Promise<{previewURL: string, tunnelURL: string, processId: string, allocatedPort: number} | undefined> {
+    ): Promise<{previewURL: string, tunnelURL: string, processId: string, allocatedPort: number}> {
         try {
             const sandbox = this.getSandbox();
             // Update project configuration with the specified project name
@@ -952,10 +952,15 @@ export class SandboxSdkClient extends BaseSandboxService {
             }
 
             this.logger.info('Installing dependencies', { instanceId });
-            const [installResult, tunnelURL] = await Promise.all([
-                this.executeCommand(instanceId, `bun install`, { timeout: 40000 }),
-                tunnelUrlPromise
-            ]);
+            let installResult = await this.executeCommand(instanceId, `bun install`, { timeout: 180000 });
+            if (installResult.exitCode !== 0) {
+                this.logger.warn('bun install failed on first attempt, retrying once', {
+                    instanceId,
+                    stderr: installResult.stderr,
+                });
+                installResult = await this.executeCommand(instanceId, `bun install`, { timeout: 180000 });
+            }
+            const tunnelURL = await tunnelUrlPromise;
             this.logger.info('Dependencies installed', { instanceId, tunnelURL });
                 
             if (installResult.exitCode === 0) {
@@ -984,16 +989,16 @@ export class SandboxSdkClient extends BaseSandboxService {
                     return { previewURL, tunnelURL, processId, allocatedPort };
                 } catch (error) {
                     this.logger.warn('Failed to start dev server', error);
-                    return undefined;
+                    throw new Error(`Failed to start dev server: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
             } else {
                 this.logger.warn('Failed to install dependencies', installResult.stderr);
+                throw new Error(`Failed to install dependencies: ${installResult.stderr || installResult.stdout || 'Unknown error'}`);
             }
         } catch (error) {
             this.logger.warn('Failed to setup instance', error);
+            throw new Error(`Failed to setup instance: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
-        
-        return undefined;
     }
     
     async createInstance(
@@ -1058,12 +1063,6 @@ export class SandboxSdkClient extends BaseSandboxService {
             }
             
             const results = await this.setupInstance(instanceId, projectName, initCommand, envVars);
-            if (!results) {
-                return {
-                    success: false,
-                    error: 'Failed to setup instance'
-                };
-            }
             // Store instance metadata
             const metadata = {
                 projectName: projectName,
