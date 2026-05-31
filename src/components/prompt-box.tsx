@@ -142,7 +142,7 @@ export function PromptBox({
 		return (
 			<div className={className} {...dragHandlers}>
 				<CreditsBanner limitsData={limitsData} onConnectCloudflare={onConnectCloudflare}>
-					<div className="rounded-xl bg-bg-2 border border-[#f48120]/30 focus-within:border-[#f48120]/70 transition-all duration-200">
+					<div className="rounded-2xl bg-bg-2 border border-[#f48120]/30 focus-within:border-[#f48120]/70 shadow-lg shadow-black/20 transition-all duration-200">
 						<form ref={formRef} onSubmit={handleSubmit}>
 							<div className="relative">
 								{dragOverlay}
@@ -165,14 +165,14 @@ export function PromptBox({
 									disabled={disabled}
 									placeholder={resolvedPlaceholder}
 									rows={1}
-									className="w-full bg-transparent rounded-xl px-3 pr-20 py-2 text-sm ring-0 outline-none text-text-primary placeholder:text-text-primary/50! disabled:opacity-50 disabled:cursor-not-allowed resize-none overflow-y-auto no-scrollbar min-h-[36px] max-h-[120px] group"
+									className="w-full bg-transparent rounded-2xl px-3 pr-20 py-2.5 text-[16px] md:text-sm ring-0 outline-none text-text-primary placeholder:text-text-primary/50! disabled:opacity-50 disabled:cursor-not-allowed resize-none overflow-y-auto no-scrollbar min-h-[44px] md:min-h-[36px] max-h-[140px] group"
 									style={{ height: 'auto', minHeight: '36px' }}
 									ref={(textarea) => {
 										(internalTextareaRef as React.MutableRefObject<HTMLTextAreaElement | null>).current = textarea;
 										if (textarea) autoResize(textarea);
 									}}
 								/>
-								<div className="absolute right-1.5 bottom-2.5 flex items-center gap-1">
+								<div className="absolute right-1.5 bottom-2 flex items-center gap-1">
 									{rightActions}
 									<ImageUploadButton
 										onFilesSelected={onAddImages}
@@ -181,7 +181,8 @@ export function PromptBox({
 									<button
 										type="submit"
 										disabled={!value.trim() || disabled || submitDisabled}
-										className="p-1.5 rounded-md bg-accent/90 hover:bg-accent/80 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-white disabled:text-text-primary transition-colors"
+										aria-label="Gửi"
+										className="p-2 md:p-1.5 rounded-lg md:rounded-md bg-accent/90 hover:bg-accent/80 disabled:opacity-50 disabled:cursor-not-allowed disabled:bg-transparent text-white disabled:text-text-primary transition-colors"
 									>
 										{submitIcon ?? <ArrowRight className="size-4" />}
 									</button>

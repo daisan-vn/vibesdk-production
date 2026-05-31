@@ -6,9 +6,11 @@ import {
 	useState,
 	type FormEvent,
 } from 'react';
-import { useParams, useSearchParams, useNavigate } from 'react-router';
+import { useParams, useSearchParams, useNavigate, useBlocker } from 'react-router';
+import { useIsMobile } from '@/hooks/use-mobile';
+import { MobileChatHeader } from './components/mobile-chat-header';
 import { AnimatePresence, motion } from 'framer-motion';
-import { LoaderCircle, MoreHorizontal, RotateCcw } from 'lucide-react';
+import { LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react';
 import clsx from 'clsx';
 import { UserMessage, AIMessage } from './components/messages';
 import { PhaseTimeline } from './components/phase-timeline';
@@ -170,6 +172,8 @@ export default function Chat() {
 	const { user } = useAuth();
 
 	const navigate = useNavigate();
+	const isMobile = useIsMobile();
+	const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
 	const [activeFilePath, setActiveFilePath] = useState<string>();
 	const [view, setView] = useState<'editor' | 'preview' | 'docs' | 'blueprint' | 'terminal' | 'presentation'>(
@@ -490,6 +494,42 @@ export default function Chat() {
 		return result;
 	}, [behaviorType, blueprint, files.length, previewUrl, streamedBootstrapFiles.length]);
 
+	// --- Navigation guard while a build is running ---
+	const isBuildActive = isGenerating || isGeneratingBlueprint || isDebugging;
+
+	// Warn on tab reload/close while building (beforeunload)
+	useEffect(() => {
+		if (!isBuildActive) return;
+		const handler = (e: BeforeUnloadEvent) => {
+			e.preventDefault();
+			e.returnValue = '';
+		};
+		window.addEventListener('beforeunload', handler);
+		return () => window.removeEventListener('beforeunload', handler);
+	}, [isBuildActive]);
+
+	// Block internal navigation while building; confirm + abort cleanly on leave
+	const navBlocker = useBlocker(
+		({ currentLocation, nextLocation }) =>
+			isBuildActive && currentLocation.pathname !== nextLocation.pathname,
+	);
+	useEffect(() => {
+		if (navBlocker.state !== 'blocked') return;
+		const ok = window.confirm(
+			'Daisan AI đang dựng ứng dụng. Rời trang sẽ dừng tiến trình hiện tại. Bạn có chắc muốn rời đi?',
+		);
+		if (ok) {
+			try {
+				handleStopGeneration();
+			} catch {
+				/* best effort abort */
+			}
+			navBlocker.proceed();
+		} else {
+			navBlocker.reset();
+		}
+	}, [navBlocker, handleStopGeneration]);
+
 	const [mainMessage, ...otherMessages] = useMemo(() => messages, [messages]);
 
 	const { scrollToBottom } = useAutoScroll(messagesContainerRef, { behavior: 'smooth', watch: [messages] });
@@ -718,10 +758,19 @@ export default function Chat() {
 
 	return (
 		<div className="size-full flex flex-col min-h-0 text-text-primary">
+			<MobileChatHeader
+				appTitle={appTitle}
+				building={isBuildActive}
+				progressLabel={total > 0 ? `${progress}/${total}` : undefined}
+				hasPreview={showMainView}
+				previewOpen={mobilePreviewOpen}
+				onTogglePreview={() => setMobilePreviewOpen((v) => !v)}
+				onReset={chatId ? () => setIsResetDialogOpen(true) : undefined}
+			/>
 			<div className="flex-1 flex min-h-0 overflow-hidden justify-center">
 				<motion.div
 					layout="position"
-					className="flex-1 shrink-0 flex flex-col basis-0 max-w-lg relative z-10 h-full min-h-0"
+					className="flex-1 shrink-0 flex flex-col basis-0 w-full max-w-none md:max-w-lg relative z-10 h-full min-h-0"
 				>
 					<div 
 					className={clsx(
@@ -927,14 +976,27 @@ export default function Chat() {
 				</motion.div>
 
 				<AnimatePresence mode="wait">
-					{showMainView && (
+					{showMainView && (!isMobile || mobilePreviewOpen) && (
 						<motion.div
 							key="main-content-panel"
 							initial={{ opacity: 0 }}
 							animate={{ opacity: 1 }}
 							exit={{ opacity: 0 }}
-							className="flex-1 flex shrink-0 basis-0 p-4 pl-0 ml-2 z-30 min-h-0"
+							className={clsx(
+								'flex-1 flex shrink-0 basis-0 p-4 pl-0 ml-2 z-30 min-h-0',
+								isMobile && 'mobile-preview-overlay bg-bg-1 flex-col',
+							)}
 						>
+							{isMobile && (
+								<button
+									type="button"
+									onClick={() => setMobilePreviewOpen(false)}
+									aria-label="Đóng xem trước"
+									className="touch-target absolute right-3 top-3 z-[70] flex size-9 items-center justify-center rounded-full border border-white/[0.08] bg-bg-2/90 text-text-primary shadow-lg backdrop-blur"
+								>
+									<X className="size-5" />
+								</button>
+							)}
 							<MainContentPanel
 								view={view}
 								onViewChange={handleViewModeChange}

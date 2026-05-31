@@ -23,7 +23,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         } as React.CSSProperties}
       >
         <AppSidebar />
-        <SidebarInset className={clsx("bg-bg-3 flex flex-col h-screen relative", pathname !== "/" && "overflow-hidden")}>
+        <SidebarInset className={clsx("bg-bg-3 flex flex-col h-screen h-[100dvh] relative", pathname !== "/" && "overflow-hidden")}>
           <GlobalHeader />
           <div className={clsx("flex-1 bg-bg-3", pathname !== "/" && "min-h-0 overflow-auto")}>
             {children || <Outlet />}

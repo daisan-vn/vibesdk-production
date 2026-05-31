@@ -398,3 +398,53 @@ scrollbar-width: none; /* Firefox */
 .no-scrollbar::-webkit-scrollbar {
 display: none; /* Chrome, Safari, Opera */
 }
+
+/* ============================================================
+   Mobile workspace helpers (Lovable-style chat/build on phones)
+   ============================================================ */
+
+/* Safe-area aware padding (iPhone notch / home indicator) */
+.pb-safe {
+	padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.pt-safe {
+	padding-top: env(safe-area-inset-top, 0px);
+}
+/* Bottom input bar: keep a comfortable gap ABOVE the home indicator */
+.chat-input-safe {
+	padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* Guaranteed 44px touch targets for icon buttons on touch devices */
+@media (hover: none) and (pointer: coarse) {
+	.touch-target {
+		min-width: 44px;
+		min-height: 44px;
+	}
+}
+
+/* Mobile preview/editor overlay slides over the chat on small screens */
+@media (max-width: 767px) {
+	.mobile-preview-overlay {
+		position: fixed;
+		inset: 0;
+		z-index: 60;
+		padding: 0 !important;
+		margin: 0 !important;
+	}
+	/* Smooth, non-janky momentum scrolling for chat on iOS */
+	.chat-messages-scroll {
+		-webkit-overflow-scrolling: touch;
+		overscroll-behavior: contain;
+	}
+	/* Long words / URLs wrap instead of overflowing horizontally */
+	.chat-messages-scroll .prose {
+		overflow-wrap: anywhere;
+		word-break: break-word;
+	}
+	/* Code blocks scroll horizontally instead of breaking the layout */
+	.chat-messages-scroll .prose pre {
+		overflow-x: auto;
+		max-width: 100%;
+	}
+}

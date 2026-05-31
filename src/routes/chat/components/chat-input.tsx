@@ -84,8 +84,8 @@ export function ChatInput({
 		: isChatDisabled
 			? 'Please wait for blueprint completion...'
 			: isRunning
-				? 'Chat with AI while generating...'
-				: 'Chat with AI...';
+				? 'Ask Daisan while building...'
+				: 'Ask Daisan...';
 
 	const modeSelector = (
 		<ModeSelector mode={mode} onModeChange={onModeChange} disabled={isChatDisabled} />
@@ -132,7 +132,7 @@ export function ChatInput({
 			}
 			maxWords={4000}
 			formRef={chatFormRef}
-			className="shrink-0 p-4 pb-5 bg-transparent"
+			className="shrink-0 px-3 pt-2 md:p-4 md:pb-5 bg-transparent chat-input-safe"
 		/>
 	);
 }
