@@ -689,8 +689,10 @@ export default function Chat() {
 		(e: FormEvent) => {
 			e.preventDefault();
 
-			// Don't submit if chat is disabled or message is empty
-			if (isChatDisabled || !newMessage.trim()) {
+			// Allow sending while Daisan is building (the backend queues the
+			// instruction into pendingUserInputs, consumed between phases). Only
+			// block truly empty messages or when there is no live socket.
+			if (!newMessage.trim() || !websocket) {
 				return;
 			}
 
@@ -1003,6 +1005,8 @@ export default function Chat() {
 					onConnectCloudflare={() => { window.location.href = `/oauth/login?return_url=${encodeURIComponent(window.location.href)}`; }}
 						mode={chatMode}
 						onModeChange={handleModeChange}
+						connectionState={connectionState}
+						onStop={handleStopGeneration}
 				/>
 				</motion.div>
 

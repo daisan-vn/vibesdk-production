@@ -831,8 +831,11 @@ export function createWebSocketMessageHandler(deps: HandleMessageDeps) {
                 toast.info('Generation stopped', {
                     description: message.message || 'Code generation has been stopped'
                 });
-                
-                sendMessage(createAIMessage('generation_stopped', message.message));
+
+                sendMessage(createAIMessage(
+                    'generation_stopped',
+                    'Generation stopped. You can revise your request and send again.',
+                ));
                 break;
             }
 
