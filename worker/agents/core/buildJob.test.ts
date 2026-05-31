@@ -142,6 +142,17 @@ describe('buildJob state machine', () => {
 		expect(job.retryCount).toBe(1);
 	});
 
+	it('plan mode: generation_complete with 0 phases is NOT failed (plan ready)', () => {
+		let job = createBuildJob(clock);
+		job = applyMessageToBuildJob(job, 'generation_started', tick(), { planMode: true });
+		job = applyMessageToBuildJob(job, 'blueprint_updated', tick(), { planMode: true });
+		expect(job.state).toBe('blueprint_ready');
+		job = applyMessageToBuildJob(job, 'generation_complete', tick(), { planMode: true });
+		expect(job.state).not.toBe('failed');
+		expect(job.state).not.toBe('done');
+		expect(job.state).toBe('blueprint_ready');
+	});
+
 	it('logs every transition through the provided logger', () => {
 		const logs: string[] = [];
 		const log = (_l: string, m: string) => logs.push(m);

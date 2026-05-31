@@ -275,9 +275,9 @@ export function applyMessageToBuildJob(
 	job: BuildJob,
 	type: string,
 	now: number,
-	opts: { requiredPhasesTotal?: number; log?: BuildLogFn } = {},
+	opts: { requiredPhasesTotal?: number; planMode?: boolean; log?: BuildLogFn } = {},
 ): BuildJob {
-	const { requiredPhasesTotal, log } = opts;
+	const { requiredPhasesTotal, planMode, log } = opts;
 	const t = (to: BuildJobState, extra?: TransitionOpts) =>
 		transition(job, to, now, { ...extra, log });
 
@@ -344,6 +344,15 @@ export function applyMessageToBuildJob(
 				log,
 			});
 		case 'generation_complete':
+			// Plan mode legitimately produces NO code phases — the "completion" is
+			// just the plan being ready, not a deployable build. Do not attempt
+			// `done` (which would fail the guard) and do not mark failed.
+			if (planMode) {
+				log?.('info', '[buildJob] generation_complete in plan mode — plan ready, not done', {});
+				return job.state === 'blueprint_ready' || job.state === 'planning'
+					? job
+					: t('blueprint_ready', { note: 'plan ready (plan mode)' });
+			}
 			// GUARDED: transition() downgrades to `failed` if not deployable / 0 phases.
 			return t('done', { note: 'generation complete signal received' });
 		case 'generation_stopped':

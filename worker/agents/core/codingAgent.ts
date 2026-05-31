@@ -787,6 +787,7 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
             const prev = this.state.buildJob ?? createBuildJob(Date.now());
             const next = applyMessageToBuildJob(prev, type, Date.now(), {
                 requiredPhasesTotal: this.computeRequiredPhases(),
+                planMode: this.state.executionMode === 'plan',
                 log: this.buildLog,
             });
             if (next === prev) return;
