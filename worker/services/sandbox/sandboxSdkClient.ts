@@ -573,7 +573,7 @@ export class SandboxSdkClient extends BaseSandboxService {
     /**
      * Waits for the development server to be ready by monitoring logs for readiness indicators
      */
-    private async waitForServerReady(instanceId: string, processId: string, maxWaitTimeMs: number = 10000): Promise<boolean> {
+    private async waitForServerReady(instanceId: string, processId: string, port: number, maxWaitTimeMs: number = 10000): Promise<boolean> {
         const startTime = Date.now();
         const pollIntervalMs = 500;
         const maxAttempts = Math.ceil(maxWaitTimeMs / pollIntervalMs);
@@ -592,6 +592,22 @@ export class SandboxSdkClient extends BaseSandboxService {
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
+                // Strong readiness gate: the target port must actually be listening.
+                const portCheck = await this.executeCommand(
+                    instanceId,
+                    `bash -lc "ss -tuln 2>/dev/null | grep -q ':${port} ' || netstat -tuln 2>/dev/null | grep -q ':${port} '"`
+                );
+                if (portCheck.exitCode === 0) {
+                    const elapsedTime = Date.now() - startTime;
+                    this.logger.info('Development server port is listening', {
+                        instanceId,
+                        port,
+                        elapsedTimeMs: elapsedTime,
+                        attempts: `${attempt}/${maxAttempts}`,
+                    });
+                    return true;
+                }
+
                 // Get recent logs only to avoid processing old content
                 const logsResult = await this.getLogs(instanceId, true);
                 
@@ -641,7 +657,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             
             // Wait for the server to be ready (non-blocking - always returns the process ID)
             try {
-                const isReady = await this.waitForServerReady(instanceId, process.id, 10000);
+                const isReady = await this.waitForServerReady(instanceId, process.id, port, 10000);
                 if (isReady) {
                     this.logger.info('Development server is ready', { instanceId });
                 } else {
@@ -1139,6 +1155,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             }
             
             let isHealthy = true;
+            let statusMessage = 'Instance is running normally';
             try {
                 // Optionally check if process is still running
                 if (metadata.processId) {
@@ -1154,16 +1171,35 @@ export class SandboxSdkClient extends BaseSandboxService {
                         }
                     }
                 }
+
+                // Process can stay "running" while the app itself crashes.
+                // Verify the exposed app port is listening before reporting healthy.
+                if (isHealthy && metadata.allocatedPort) {
+                    try {
+                        const portCheck = await this.executeCommand(
+                            instanceId,
+                            `bash -lc "ss -tuln 2>/dev/null | grep -q ':${metadata.allocatedPort} ' || netstat -tuln 2>/dev/null | grep -q ':${metadata.allocatedPort} '"`
+                        );
+                        if (portCheck.exitCode !== 0) {
+                            isHealthy = false;
+                            statusMessage = `Container process is up but app is not listening on port ${metadata.allocatedPort}`;
+                        }
+                    } catch {
+                        isHealthy = false;
+                        statusMessage = `Unable to verify listening port ${metadata.allocatedPort}`;
+                    }
+                }
             } catch {
                 // No preview available
                 isHealthy = false;
+                statusMessage = 'Instance health check failed';
             }
 
             return {
                 success: true,
                 pending: false,
                 isHealthy,
-                message: isHealthy ? 'Instance is running normally' : 'Instance may have issues',
+                message: isHealthy ? 'Instance is running normally' : statusMessage,
                 previewURL: resolvePreviewUrl(metadata.previewURL, metadata.tunnelURL, env),
                 tunnelURL: metadata.tunnelURL,
                 processId: metadata.processId

@@ -50,6 +50,7 @@ export const PreviewIframe = forwardRef<HTMLIFrameElement, PreviewIframeProps>(
 		const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 		const hasRequestedRedeployRef = useRef(false);
         const postLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+        const lastProbeHttpStatusRef = useRef<number | null>(null);
 		// ====================================================================
 		// Core Loading Logic
 		// ====================================================================
@@ -67,6 +68,7 @@ export const PreviewIframe = forwardRef<HTMLIFrameElement, PreviewIframeProps>(
 					signal: AbortSignal.timeout(8000),
 				});
                 console.log('Preview availability test response:', response, response.headers.forEach((value, key) => console.log("Header: ",key, value)));
+                lastProbeHttpStatusRef.current = response.status;
 				
 				if (!response.ok) {
 					console.log('Preview not ready (status:', response.status, ')');
@@ -91,6 +93,7 @@ export const PreviewIframe = forwardRef<HTMLIFrameElement, PreviewIframeProps>(
 				return 'sandbox';
 			} catch (error) {
 				console.log('Preview not available yet:', error);
+                lastProbeHttpStatusRef.current = null;
 				return null;
 			}
 		}, []);
@@ -209,7 +212,7 @@ export const PreviewIframe = forwardRef<HTMLIFrameElement, PreviewIframeProps>(
 				// try loading the iframe directly instead of keeping the user blocked.
 				// Tunnel previews are prone to transient 502 while origin bootstraps;
 				// keep retrying instead of surfacing a premature direct load.
-				if (!isTunnelPreview && attempt >= 2) {
+				if (!isTunnelPreview && attempt >= 2 && lastProbeHttpStatusRef.current === null) {
 					console.log('Preview probe unavailable - switching to direct iframe load fallback');
 					setLoadState({
 						status: 'postload',
