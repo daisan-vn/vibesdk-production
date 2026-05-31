@@ -1785,6 +1785,15 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
             // Ensure template details are loaded before processing
             await this.ensureTemplateDetails();
 
+            const isClarificationReply = this.state.buildJob?.state === 'needs_clarification';
+            if (isClarificationReply) {
+                this.setState({
+                    ...this.state,
+                    pendingUserInputs: [...this.state.pendingUserInputs, userMessage],
+                    shouldBeGenerating: true,
+                });
+            }
+
             // Just fetch runtime errors
             const errors = await this.fetchRuntimeErrors(false, false);
             const projectUpdates = await this.getAndResetProjectUpdates();

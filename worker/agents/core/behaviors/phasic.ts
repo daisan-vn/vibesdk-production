@@ -318,6 +318,20 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         }
 
         let userContext: UserContext | undefined;
+        if (phaseConcept && this.state.generatedPhases.length === 1 && this.state.pendingUserInputs.length > 0) {
+            const pendingUserInputs = this.fetchPendingUserRequests();
+            userContext = {
+                suggestions: pendingUserInputs,
+                images: this.pendingUserImages,
+            };
+            if (this.pendingUserImages.length > 0) {
+                this.pendingUserImages = [];
+            }
+            this.logger.info('Applying pending user inputs to initial phase', {
+                suggestionsCount: pendingUserInputs.length,
+                imageCount: userContext.images?.length || 0,
+            });
+        }
 
         try {
             let executionResults: PhaseExecutionResult;
