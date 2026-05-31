@@ -185,7 +185,7 @@ export function createScratchTemplateDetails(): TemplateDetails {
         projectType: 'general',
         frameworks: [],
         importantFiles: [],
-        dontTouchFiles: ['wrangler.jsonc'],
+        dontTouchFiles: ['wrangler.jsonc', 'vite.config.ts'],
         redactedFiles: [],
         disabled: false,
     };

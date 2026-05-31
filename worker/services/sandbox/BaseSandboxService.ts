@@ -149,6 +149,14 @@ export abstract class BaseSandboxService {
             // Parse metadata files
             const dontTouchFile = allFiles.find(f => f.filePath === '.donttouch_files.json');
             const dontTouchFiles = dontTouchFile ? JSON.parse(dontTouchFile.fileContents) : [];
+            // Always protect critical runtime configs when present.
+            // AI-edited vite config frequently causes preview/build hard failures.
+            if (allFiles.some(f => f.filePath === 'vite.config.ts') && !dontTouchFiles.includes('vite.config.ts')) {
+                dontTouchFiles.push('vite.config.ts');
+            }
+            if (allFiles.some(f => f.filePath === 'wrangler.jsonc') && !dontTouchFiles.includes('wrangler.jsonc')) {
+                dontTouchFiles.push('wrangler.jsonc');
+            }
             
             const redactedFile = allFiles.find(f => f.filePath === '.redacted_files.json');
             const redactedFiles = redactedFile ? JSON.parse(redactedFile.fileContents) : [];
