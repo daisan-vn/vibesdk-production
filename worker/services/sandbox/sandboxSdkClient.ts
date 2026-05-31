@@ -941,16 +941,6 @@ export class SandboxSdkClient extends BaseSandboxService {
                 this.logger.warn('Failed to store wrangler config in KV', { instanceId, error: error instanceof Error ? error.message : 'Unknown error' });
                 // Non-blocking - continue with setup
             }
-            // If on local development, start cloudflared tunnel
-            let tunnelUrlPromise = Promise.resolve('');
-            // Allocate single port for both dev server and tunnel
-            const allocatedPort = await this.allocateAvailablePort();
-
-            if (isDev(env) || env.USE_TUNNEL_FOR_PREVIEW) {
-                this.logger.info('Starting cloudflared tunnel for local development', { instanceId });
-                tunnelUrlPromise = this.startCloudflaredTunnel(instanceId, allocatedPort);
-            }
-
             this.logger.info('Installing dependencies', { instanceId });
             let installResult = await this.executeCommand(instanceId, `bun install`, { timeout: 180000 });
             if (installResult.exitCode !== 0) {
@@ -960,37 +950,69 @@ export class SandboxSdkClient extends BaseSandboxService {
                 });
                 installResult = await this.executeCommand(instanceId, `bun install`, { timeout: 180000 });
             }
-            const tunnelURL = await tunnelUrlPromise;
-            this.logger.info('Dependencies installed', { instanceId, tunnelURL });
+            this.logger.info('Dependencies installed', { instanceId });
                 
             if (installResult.exitCode === 0) {
-                // Try to start development server in background
-                try {
-                    if (localEnvVars) {
-                        await this.setLocalEnvVars(instanceId, localEnvVars);
-                    }
-                    // Start dev server on allocated port
-                    const processId = await this.startDevServer(instanceId, initCommand, allocatedPort);
-                    this.logger.info('Instance created successfully', { instanceId, processId, port: allocatedPort });
-                        
-                    // Expose the same port for preview URL
-                    const previewResult = await sandbox.exposePort(allocatedPort, { hostname: getPreviewDomain(env) });
-                    let previewURL = previewResult.url;
-                    if (!isDev(env)) {
-                        const previewDomain = getPreviewDomain(env);
-                        if (previewDomain) {
-                            // Replace CUSTOM_DOMAIN with previewDomain in previewURL
-                            previewURL = previewURL.replace(env.CUSTOM_DOMAIN, previewDomain);
+                if (localEnvVars) {
+                    await this.setLocalEnvVars(instanceId, localEnvVars);
+                }
+
+                const triedPorts: number[] = [];
+                const MAX_PORT_RETRIES = 4;
+                let lastStartError: unknown;
+
+                for (let attempt = 0; attempt < MAX_PORT_RETRIES; attempt++) {
+                    const allocatedPort = await this.allocateAvailablePort(triedPorts);
+                    triedPorts.push(allocatedPort);
+
+                    try {
+                        // Best-effort cleanup for stale exposures from previous failed runs
+                        try {
+                            await sandbox.unexposePort(allocatedPort);
+                        } catch {
+                            // ignore - port may not be exposed
+                        }
+
+                        const processId = await this.startDevServer(instanceId, initCommand, allocatedPort);
+                        this.logger.info('Instance created successfully', { instanceId, processId, port: allocatedPort });
+
+                        const previewResult = await sandbox.exposePort(allocatedPort, { hostname: getPreviewDomain(env) });
+                        let previewURL = previewResult.url;
+                        if (!isDev(env)) {
+                            const previewDomain = getPreviewDomain(env);
+                            if (previewDomain) {
+                                previewURL = previewURL.replace(env.CUSTOM_DOMAIN, previewDomain);
+                            }
+                        }
+
+                        let tunnelURL = '';
+                        if (isDev(env) || env.USE_TUNNEL_FOR_PREVIEW) {
+                            this.logger.info('Starting cloudflared tunnel', { instanceId, allocatedPort });
+                            tunnelURL = await this.startCloudflaredTunnel(instanceId, allocatedPort);
+                        }
+
+                        this.logger.info('Preview URL exposed', { instanceId, previewURL, tunnelURL, allocatedPort });
+                        return { previewURL, tunnelURL, processId, allocatedPort };
+                    } catch (error) {
+                        lastStartError = error;
+                        const message = error instanceof Error ? error.message : String(error);
+                        const isPortAlreadyExposed = message.includes('PortAlreadyExposedError');
+
+                        this.logger.warn('Failed to start dev server on allocated port', {
+                            instanceId,
+                            allocatedPort,
+                            attempt: attempt + 1,
+                            maxAttempts: MAX_PORT_RETRIES,
+                            error: message,
+                        });
+
+                        if (!isPortAlreadyExposed || attempt === MAX_PORT_RETRIES - 1) {
+                            throw new Error(`Failed to start dev server: ${message}`);
                         }
                     }
-
-                    this.logger.info('Preview URL exposed', { instanceId, previewURL, tunnelURL });
-                        
-                    return { previewURL, tunnelURL, processId, allocatedPort };
-                } catch (error) {
-                    this.logger.warn('Failed to start dev server', error);
-                    throw new Error(`Failed to start dev server: ${error instanceof Error ? error.message : 'Unknown error'}`);
                 }
+
+                throw new Error(`Failed to start dev server after ${MAX_PORT_RETRIES} port attempts: ${lastStartError instanceof Error ? lastStartError.message : 'Unknown error'}`);
             } else {
                 this.logger.warn('Failed to install dependencies', installResult.stderr);
                 throw new Error(`Failed to install dependencies: ${installResult.stderr || installResult.stdout || 'Unknown error'}`);
