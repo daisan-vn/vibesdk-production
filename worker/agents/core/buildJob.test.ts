@@ -150,7 +150,7 @@ describe('buildJob state machine', () => {
 		job = applyMessageToBuildJob(job, 'generation_complete', tick(), { planMode: true });
 		expect(job.state).not.toBe('failed');
 		expect(job.state).not.toBe('done');
-		expect(job.state).toBe('blueprint_ready');
+		expect(job.state).toBe('awaiting_approval');
 	});
 
 	it('needs_clarification pauses without timing out or being terminal', () => {

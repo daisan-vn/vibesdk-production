@@ -13,6 +13,7 @@ export type BuildJobState =
 	| 'queued'
 	| 'analyzing'
 	| 'needs_clarification'
+	| 'awaiting_approval'
 	| 'planning'
 	| 'blueprint_ready'
 	| 'generating_code'
@@ -31,6 +32,7 @@ export const BUILD_PROGRESS_ORDER: BuildJobState[] = [
 	'analyzing',
 	'planning',
 	'blueprint_ready',
+	'awaiting_approval',
 	'generating_code',
 	'installing_dependencies',
 	'preview_starting',
@@ -106,7 +108,8 @@ export function isWorkingState(state: BuildJobState): boolean {
 		!TERMINAL.has(state) &&
 		state !== 'reconnecting' &&
 		state !== 'queued' &&
-		state !== 'needs_clarification'
+		state !== 'needs_clarification' &&
+		state !== 'awaiting_approval'
 	);
 }
 
@@ -138,10 +141,11 @@ export function createBuildJob(now: number): BuildJob {
  */
 const ALLOWED: Record<BuildJobState, BuildJobState[]> = {
 	queued: ['analyzing', 'planning'],
-	analyzing: ['needs_clarification', 'planning', 'blueprint_ready', 'generating_code'],
+	analyzing: ['needs_clarification', 'planning', 'blueprint_ready', 'generating_code', 'awaiting_approval'],
 	needs_clarification: ['analyzing', 'planning', 'blueprint_ready', 'generating_code'],
-	planning: ['needs_clarification', 'blueprint_ready', 'generating_code', 'analyzing'],
-	blueprint_ready: ['needs_clarification', 'generating_code'],
+	awaiting_approval: ['analyzing', 'planning', 'blueprint_ready', 'generating_code'],
+	planning: ['needs_clarification', 'blueprint_ready', 'generating_code', 'analyzing', 'awaiting_approval'],
+	blueprint_ready: ['needs_clarification', 'generating_code', 'awaiting_approval'],
 	generating_code: [
 		'generating_code',
 		'installing_dependencies',
@@ -296,7 +300,12 @@ export function applyMessageToBuildJob(
 		case 'generation_started': {
 			// A fresh full (re)build: reset progress counters so a previous run's
 			// completedPhases/deployable can't leak into the new job.
-			if (job.state === 'queued' || job.state === 'reconnecting' || isTerminalState(job.state)) {
+			if (
+				job.state === 'queued' ||
+				job.state === 'reconnecting' ||
+				job.state === 'awaiting_approval' ||
+				isTerminalState(job.state)
+			) {
 				const fresh = createBuildJob(now);
 				fresh.retryCount = job.retryCount;
 				// First visible step: analyzing the request before any blueprint/code.
@@ -360,10 +369,8 @@ export function applyMessageToBuildJob(
 			// just the plan being ready, not a deployable build. Do not attempt
 			// `done` (which would fail the guard) and do not mark failed.
 			if (planMode) {
-				log?.('info', '[buildJob] generation_complete in plan mode — plan ready, not done', {});
-				return job.state === 'blueprint_ready' || job.state === 'planning'
-					? job
-					: t('blueprint_ready', { note: 'plan ready (plan mode)' });
+				log?.('info', '[buildJob] generation_complete in plan mode - plan ready, not done', {});
+				return t('awaiting_approval', { note: 'plan ready (plan mode)' });
 			}
 			// GUARDED: transition() downgrades to `failed` if not deployable / 0 phases.
 			return t('done', { note: 'generation complete signal received' });

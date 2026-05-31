@@ -22,20 +22,21 @@ const RUNNING: ReadonlySet<BuildJobState> = new Set([
 function describe(state: BuildJobState): { label: string; tone: Tone } {
 	switch (state) {
 		case 'queued': return { label: 'Queued', tone: 'idle' };
-		case 'analyzing': return { label: 'Analyzing request…', tone: 'running' };
-		case 'needs_clarification': return { label: 'Daisan needs a quick answer — see the question above', tone: 'warn' };
-		case 'planning': return { label: 'Planning…', tone: 'running' };
-		case 'blueprint_ready': return { label: 'Blueprint ready · building', tone: 'running' };
+		case 'analyzing': return { label: 'Analyzing request...', tone: 'running' };
+		case 'needs_clarification': return { label: 'Daisan needs a quick answer - see the question above', tone: 'warn' };
+		case 'awaiting_approval': return { label: 'Plan ready - waiting for your approval to build', tone: 'idle' };
+		case 'planning': return { label: 'Planning...', tone: 'running' };
+		case 'blueprint_ready': return { label: 'Blueprint ready - building', tone: 'running' };
 		case 'generating_code': return { label: 'Generating code', tone: 'running' };
-		case 'installing_dependencies': return { label: 'Installing dependencies…', tone: 'running' };
-		case 'preview_starting': return { label: 'Preparing preview…', tone: 'running' };
+		case 'installing_dependencies': return { label: 'Installing dependencies...', tone: 'running' };
+		case 'preview_starting': return { label: 'Preparing preview...', tone: 'running' };
 		case 'preview_ready': return { label: 'Preview ready', tone: 'ok' };
-		case 'deployable': return { label: 'Build complete — ready to deploy', tone: 'ok' };
+		case 'deployable': return { label: 'Build complete - ready to deploy', tone: 'ok' };
 		case 'done': return { label: 'Done', tone: 'ok' };
 		case 'failed': return { label: 'Build failed', tone: 'error' };
 		case 'aborted': return { label: 'Generation stopped', tone: 'warn' };
-		case 'reconnecting': return { label: 'Reconnecting…', tone: 'warn' };
-		default: return { label: 'Working…', tone: 'running' };
+		case 'reconnecting': return { label: 'Reconnecting...', tone: 'warn' };
+		default: return { label: 'Working...', tone: 'running' };
 	}
 }
 
@@ -48,8 +49,8 @@ const TONE_STYLES: Record<Tone, string> = {
 };
 
 /**
- * Compact, always-visible canonical build status — turns the opaque
- * "Thinking… → Done" into a transparent, per-state line driven by the
+ * Compact, always-visible canonical build status - turns the opaque
+ * "Thinking... -> Done" into a transparent, per-state line driven by the
  * server build-job state machine, with the right contextual action.
  */
 export function BuildStatusBar({
@@ -85,7 +86,7 @@ export function BuildStatusBar({
 				<div className="truncate text-sm font-medium">
 					{label}
 					{showPhaseCount && (
-						<span className="ml-1.5 font-normal opacity-80">· {progress}/{total} phases</span>
+						<span className="ml-1.5 font-normal opacity-80"> - {progress}/{total} phases</span>
 					)}
 				</div>
 				{effective === 'failed' && lastError && (
