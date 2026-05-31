@@ -23,8 +23,8 @@ interface LoadState {
     previewType?: 'sandbox' | 'dispatcher';
 }
 
-const MAX_RETRIES = 10;
-const REDEPLOY_AFTER_ATTEMPT = 8;
+const MAX_RETRIES = 6;
+const REDEPLOY_AFTER_ATTEMPT = 3;
 const POST_LOAD_WAIT_SANDBOX = 0;
 const POST_LOAD_WAIT_DISPATCHER = 0;
 
@@ -204,6 +204,27 @@ export const PreviewIframe = forwardRef<HTMLIFrameElement, PreviewIframeProps>(
 					requestScreenshot(url);
 				}, waitTime);
 			} else {
+				// Fallback: after a few failed availability checks (often CORS/HEAD false negatives),
+				// try loading the iframe directly instead of keeping the user blocked.
+				if (attempt >= 2) {
+					console.log('Preview probe unavailable - switching to direct iframe load fallback');
+					setLoadState({
+						status: 'postload',
+						attempt: attempt + 1,
+						loadedSrc: url,
+						errorMessage: null,
+						previewType: 'sandbox',
+					});
+					postLoadTimeoutRef.current = setTimeout(() => {
+						setLoadState(prev => ({
+							...prev,
+							status: 'loaded',
+						}));
+						requestScreenshot(url);
+					}, POST_LOAD_WAIT_SANDBOX);
+					return;
+				}
+
 				// Not available yet - retry with backoff
 				const delay = getRetryDelay(attempt);
 				const nextAttempt = attempt + 1;
