@@ -16,6 +16,7 @@ import PricingPage from './routes/pricing';
 import EnterprisePage from './routes/enterprise';
 import SecurityPage from './routes/security';
 import ResourcesPage from './routes/resources';
+import ResourceDetailPage from './routes/resources/detail';
 import CommunityPage from './routes/community';
 import OnboardingPage from './routes/onboarding';
 import TemplateDetailPage from './routes/templates/detail';
@@ -71,6 +72,7 @@ const routes = [
 			{ path: 'enterprise', Component: EnterprisePage },
 			{ path: 'security', Component: SecurityPage },
 			{ path: 'resources', Component: ResourcesPage },
+			{ path: 'resources/:slug', Component: ResourceDetailPage },
 			{ path: 'community', Component: CommunityPage },
 			{ path: 'onboarding', Component: OnboardingPage },
 			{ path: 'templates/:slug', Component: TemplateDetailPage },
