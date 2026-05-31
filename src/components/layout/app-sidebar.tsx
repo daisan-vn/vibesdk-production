@@ -35,6 +35,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { useNavigate } from 'react-router';
 import { cn } from '@/lib/utils';
 import {
@@ -83,12 +84,13 @@ function AppMenuItem({
 	isCollapsed,
 	getVisibilityIcon,
 }: AppMenuItemProps) {
+	const { t } = useI18n();
 	const formatTimestamp = () => {
 		if (app.updatedAtFormatted) return app.updatedAtFormatted;
 		if (app.updatedAt && isValid(app.updatedAt)) {
 			return formatDistanceToNow(app.updatedAt, { addSuffix: true });
 		}
-		return 'Recently';
+		return t('Recently', 'Gần đây');
 	};
 
 	return (
@@ -151,6 +153,7 @@ function AppMenuItem({
 }
 
 export function AppSidebar() {
+	const { t } = useI18n();
 	const { user } = useAuth();
 	const navigate = useNavigate();
 	const [searchQuery, setSearchQuery] = React.useState('');
@@ -242,7 +245,7 @@ export function AppSidebar() {
 													<Plus className="h-4 w-4 text-neutral-50" />
 													{!isCollapsed && (
 														<span className="font-medium text-neutral-50">
-															New build
+															{t('New build', 'Dựng mới')}
 														</span>
 													)}
 												</button>
@@ -266,7 +269,7 @@ export function AppSidebar() {
 										<div className="relative bg-bg-3 mb-4 mt-2">
 											<Search className="absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
 											<Input
-												placeholder="Search apps..."
+												placeholder={t('Search apps...', 'Tìm ứng dụng...')}
 												value={searchQuery}
 												onChange={(e) =>
 													setSearchQuery(
@@ -284,7 +287,7 @@ export function AppSidebar() {
 														<SidebarMenuItem>
 															<div className="flex items-center justify-center py-4">
 																<div className="text-sm text-text-tertiary">
-																	Searching...
+																	{t('Searching...', 'Đang tìm...')}
 																</div>
 															</div>
 														</SidebarMenuItem>
@@ -293,14 +296,14 @@ export function AppSidebar() {
 														<>
 															<SidebarMenuItem>
 																<div className="px-2 py-1 text-xs text-text-tertiary">
-																	Found{' '}
+																	{t('Found', 'Tìm thấy')}{' '}
 																	{
 																		searchResults.length
 																	}{' '}
-																	app
+																	{t('app', 'ứng dụng')}
 																	{searchResults.length !==
 																	1
-																		? 's'
+																		? t('s', '')
 																		: ''}
 																</div>
 															</SidebarMenuItem>
@@ -338,8 +341,7 @@ export function AppSidebar() {
 														<SidebarMenuItem>
 															<div className="flex items-center justify-center py-4">
 																<div className="text-sm text-text-tertiary">
-																	No apps
-																	found for "
+																	{t('No apps found for', 'Không tìm thấy ứng dụng cho')} "
 																	{
 																		searchQuery
 																	}
@@ -379,14 +381,13 @@ export function AppSidebar() {
 																		'/apps',
 																	)
 																}
-																tooltip="View all apps"
+																tooltip={t('View all apps', 'Xem tất cả ứng dụng')}
 																className="text-text-tertiary hover:text-text-primary view-all-button"
 															>
 																<ChevronRight className="h-4 w-4" />
 																{!isCollapsed && (
 																	<span className="font-medium text-text-primary/80">
-																		View all
-																		apps →
+																		{t('View all apps →', 'Xem tất cả ứng dụng →')}
 																	</span>
 																)}
 															</SidebarMenuButton>
@@ -411,7 +412,7 @@ export function AppSidebar() {
 													'justify-center px-0',
 											)}
 										>
-											{!isCollapsed && 'Bookmarked'}
+											{!isCollapsed && t('Bookmarked', 'Đã ghim')}
 											<Bookmark className="h-5 w-5 fill-yellow-500 text-yellow-500" />
 											
 										</SidebarGroupLabel>
@@ -577,70 +578,60 @@ export function AppSidebar() {
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/projects')}
-									tooltip="Projects"
+									tooltip={t('Projects', 'Dự án')}
 									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
 									<LayoutGrid className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
-											Projects
-										</span>
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">{t('Projects', 'Dự án')}</span>
 									)}
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/plans')}
-									tooltip="Plans"
+									tooltip={t('Plans', 'Kế hoạch')}
 									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
 									<ClipboardList className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
-											Plans
-										</span>
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">{t('Plans', 'Kế hoạch')}</span>
 									)}
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/deployments')}
-									tooltip="Deployments"
+									tooltip={t('Deployments', 'Triển khai')}
 									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
 									<Rocket className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
-											Deployments
-										</span>
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">{t('Deployments', 'Triển khai')}</span>
 									)}
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/templates')}
-									tooltip="Templates"
+									tooltip={t('Templates', 'Mẫu')}
 									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
 									<LayoutTemplate className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
-											Templates
-										</span>
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">{t('Templates', 'Mẫu')}</span>
 									)}
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/connectors')}
-									tooltip="Connectors"
+									tooltip={t('Connectors', 'Kết nối')}
 									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
 									<Plug className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
-											Connectors
-										</span>
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">{t('Connectors', 'Kết nối')}</span>
 									)}
 								</SidebarMenuButton>
 							</SidebarMenuItem>
@@ -648,28 +639,24 @@ export function AppSidebar() {
 								<SidebarMenuButton
 									id="discover-link"
 									onClick={() => navigate('/discover')}
-									tooltip="Discover"
+									tooltip={t('Discover', 'Khám phá')}
 									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
 									<Compass className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="text-text-primary/80 font-medium group-hover:text-primary transition-colors">
-											Discover
-										</span>
+										<span className="text-text-primary/80 font-medium group-hover:text-primary transition-colors">{t('Discover', 'Khám phá')}</span>
 									)}
 								</SidebarMenuButton>
 							</SidebarMenuItem>
 							<SidebarMenuItem>
 								<SidebarMenuButton
 									onClick={() => navigate('/settings')}
-									tooltip="Settings"
+									tooltip={t('Settings', 'Cài đặt')}
 									className="group hover:opacity-80 hover:cursor-pointer hover:bg-bg-1/50 transition-all duration-200"
 								>
 									<Settings className="h-6 w-6 text-text-primary/60 group-hover:text-primary/80 transition-colors" />
 									{!isCollapsed && (
-										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">
-											Settings
-										</span>
+										<span className="font-medium text-text-primary/80 group-hover:text-primary transition-colors">{t('Settings', 'Cài đặt')}</span>
 									)}
 								</SidebarMenuButton>
 							</SidebarMenuItem>
