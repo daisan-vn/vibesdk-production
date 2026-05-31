@@ -21,6 +21,15 @@ import { handleWebSocketMessage, handleWebSocketClose, broadcastToConnections, s
 import { WebSocketMessageData, WebSocketMessageType } from "worker/api/websocketTypes";
 import { PreviewType, TemplateDetails } from "worker/services/sandbox/sandboxTypes";
 import { WebSocketMessageResponses } from "../constants";
+import {
+    createBuildJob,
+    applyMessageToBuildJob,
+    transition as buildTransition,
+    checkTimeout as buildCheckTimeout,
+    isTerminalState as buildIsTerminal,
+    type BuildJob,
+    type BuildLogFn,
+} from "./buildJob";
 import { AppService, ModelConfigService, PlanService } from "worker/database";
 import type { PlanContent } from "worker/database/schema";
 import { runSpecialistsToPlan } from "../daisan-pipeline/orchestrator";
@@ -150,6 +159,7 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
         currentDevState: CurrentDevState.IDLE,
         phasesCounter: MAX_PHASES,
         executionMode: 'plan' as ChatMode,
+        buildJob: createBuildJob(Date.now()),
     } as AgentState;
 
     constructor(ctx: AgentContext, env: Env) {
@@ -737,10 +747,90 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
      * Type-safe version using proper WebSocket message types
      */
     public broadcast<T extends WebSocketMessageType>(
-        type: T, 
+        type: T,
         data?: WebSocketMessageData<T>
     ): void {
+        // Feed the canonical build-job state machine from every pipeline event,
+        // BEFORE relaying the original message, so build state stays authoritative.
+        this.updateBuildJobFromMessage(type);
         broadcastToConnections(this, type, data || {} as WebSocketMessageData<T>);
+    }
+
+    /** Structured logger bound to the build-job module. */
+    private buildLog: BuildLogFn = (level, message, data) => {
+        try {
+            this.logger()[level](message, data);
+        } catch {
+            /* logging must never break the pipeline */
+        }
+    };
+
+    /** Required phase count derived from the (phasic) blueprint roadmap. */
+    private computeRequiredPhases(): number | undefined {
+        try {
+            const bp = this.state.blueprint as unknown as { implementationRoadmap?: unknown[] };
+            const n = Array.isArray(bp?.implementationRoadmap) ? bp.implementationRoadmap.length : 0;
+            return n > 0 ? n : undefined;
+        } catch {
+            return undefined;
+        }
+    }
+
+    /**
+     * Apply a pipeline message to the persisted build-job. Persists on any
+     * change and broadcasts a `build_state` snapshot when a state-relevant
+     * field changed (state / deployable / completedPhases) — never on every file.
+     */
+    private updateBuildJobFromMessage(type: string): void {
+        if (type === WebSocketMessageResponses.BUILD_STATE) return; // avoid recursion
+        try {
+            const prev = this.state.buildJob ?? createBuildJob(Date.now());
+            const next = applyMessageToBuildJob(prev, type, Date.now(), {
+                requiredPhasesTotal: this.computeRequiredPhases(),
+                log: this.buildLog,
+            });
+            if (next === prev) return;
+            this.setState({ ...this.state, buildJob: next });
+            const stateRelevantChange =
+                next.state !== prev.state ||
+                next.deployable !== prev.deployable ||
+                next.completedPhases !== prev.completedPhases;
+            if (stateRelevantChange) {
+                broadcastToConnections(this, WebSocketMessageResponses.BUILD_STATE, { buildJob: next });
+            }
+        } catch (error) {
+            this.logger().warn('Failed to update build-job state', { error });
+        }
+    }
+
+    /** Read the canonical build-job, lazily failing it if a phase has timed out. */
+    public getBuildJob(): BuildJob {
+        const job = this.state.buildJob ?? createBuildJob(Date.now());
+        const timedOut = buildCheckTimeout(job, Date.now(), this.buildLog);
+        if (timedOut) {
+            this.setState({ ...this.state, buildJob: timedOut });
+            broadcastToConnections(this, WebSocketMessageResponses.BUILD_STATE, { buildJob: timedOut });
+            return timedOut;
+        }
+        return job;
+    }
+
+    /** Send the canonical build-job to a single connection (reconnect reconcile). */
+    public sendBuildState(connection: Connection): void {
+        sendToConnection(connection, WebSocketMessageResponses.BUILD_STATE, { buildJob: this.getBuildJob() });
+    }
+
+    /** Transition the build-job to `aborted` (clean stop). */
+    public abortBuildJob(reason = 'aborted by user'): void {
+        try {
+            const prev = this.state.buildJob ?? createBuildJob(Date.now());
+            if (buildIsTerminal(prev.state)) return;
+            const next = buildTransition(prev, 'aborted', Date.now(), { note: reason, log: this.buildLog });
+            this.setState({ ...this.state, buildJob: next });
+            broadcastToConnections(this, WebSocketMessageResponses.BUILD_STATE, { buildJob: next });
+        } catch (error) {
+            this.logger().warn('Failed to abort build-job', { error });
+        }
     }
 
     protected broadcastError(context: string, error: unknown): void {

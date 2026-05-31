@@ -85,6 +85,9 @@ export const WebSocketMessageResponses: Record<string, WebSocketMessageType> = {
 
     // Vault messages
     VAULT_REQUIRED: 'vault_required',
+
+    // Canonical build-job state machine snapshot
+    BUILD_STATE: 'build_state',
 } as const satisfies Record<string, WebSocketMessageType>;
 
 // WebSocket message types
@@ -112,6 +115,9 @@ export const WebSocketMessageRequests = {
     
     // Model configuration info request
     GET_MODEL_CONFIGS: 'get_model_configs',
+
+    // Canonical build-job state request (reconnect reconciliation)
+    GET_BUILD_STATE: 'get_build_state',
     
     // Terminal command request
     TERMINAL_COMMAND: 'terminal_command',

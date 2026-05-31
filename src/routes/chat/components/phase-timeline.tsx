@@ -194,6 +194,13 @@ interface PhaseTimelineProps {
 	// Activity state
 	isGenerating?: boolean;
 	isThinking?: boolean;
+	/**
+	 * Canonical "done" from the server build-job state machine. When provided,
+	 * "Done" is shown ONLY if this is true — preventing the 0/1-phase false-Done.
+	 */
+	buildDone?: boolean;
+	/** Connection lost — freeze advance and show "Reconnecting...". */
+	isReconnecting?: boolean;
 }
 
 // Helper function to truncate long file paths
@@ -280,7 +287,9 @@ export function PhaseTimeline({
 	staticIssueCount = 0,
 	isDebugging = false,
 	isGenerating = false,
-	isThinking = false
+	isThinking = false,
+	buildDone,
+	isReconnecting = false,
 }: PhaseTimelineProps) {
 	const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
 	const [showCollapsedBar, setShowCollapsedBar] = useState(false);
@@ -941,8 +950,14 @@ export function PhaseTimeline({
 					{(() => {
 						const allStagesCompleted = projectStages.every(stage => stage.status === 'completed');
 						const isAnythingHappening = isDebugging || isGenerating || isThinking || isPreviewDeploying;
-						const showDone = allStagesCompleted && !isAnythingHappening;
-						
+						// Authoritative guard: when the server build-job is wired in,
+						// "Done" requires buildDone===true (never on 0/1 false-complete).
+						// Also never show Done while reconnecting (state may be stale).
+						const localDone = allStagesCompleted && !isAnythingHappening;
+						const showDone = buildDone === undefined
+							? localDone
+							: localDone && buildDone === true && !isReconnecting;
+
 						if (showDone) {
 							return (
 								<motion.div

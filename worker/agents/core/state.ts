@@ -4,6 +4,7 @@ import type { PhasicBlueprint, AgenticBlueprint, PhaseConceptType ,
 } from '../schemas';
 import type { InferenceMetadata } from '../inferutils/config.types';
 import { BehaviorType, Plan, ProjectType, ChatMode, PlanStatus } from './types';
+import type { BuildJob } from './buildJob';
 
 export interface FileState extends FileOutputType {
     lastDiff: string;
@@ -73,6 +74,10 @@ export interface BaseProjectState {
     executionMode: ChatMode; // 'plan' (analyze only) or 'build' (implement). Defaults to 'plan'.
     latestPlanId?: string;
     latestPlanStatus?: PlanStatus;
+
+    // Canonical, persisted build-job state machine (source of truth for
+    // progress / deployability / done). See worker/agents/core/buildJob.ts
+    buildJob?: BuildJob;
 }
 
 /** Phasic agent state */

@@ -12,6 +12,7 @@ import {
 	type BehaviorType,
 	type FileType,
 	type TemplateDetails,
+	type BuildJob,
 	getBehaviorTypeForProject,
 } from '@/api-types';
 import {
@@ -159,6 +160,14 @@ export function useChat({
 	// Track whether we've completed initial state restoration to avoid disrupting active sessions
 	const [isInitialStateRestored, setIsInitialStateRestored] = useState(false);
 
+	// Canonical, server-driven build-job state machine (source of truth for
+	// Done / deployability). Reconciled on every build_state msg + on reconnect.
+	const [buildJob, setBuildJob] = useState<BuildJob | undefined>(undefined);
+	// Connection lifecycle for the UI ("Reconnecting..." indicator).
+	const [connectionState, setConnectionState] = useState<
+		'connecting' | 'connected' | 'reconnecting' | 'failed'
+	>('connecting');
+
 	const updateStage = useCallback(
 		(stageId: ProjectStage['id'], data: Partial<Omit<ProjectStage, 'id'>>) => {
 			logger.debug('updateStage', { stageId, ...data });
@@ -209,6 +218,7 @@ export function useChat({
 		() =>
 			createWebSocketMessageHandler({
 			// State setters
+			setBuildJob,
 			setFiles,
 			setPhaseTimeline,
 			setProjectStages,
@@ -330,7 +340,8 @@ export function useChat({
 					clearTimeout(connectionTimeout);
 					logger.info('✅ WebSocket connection established successfully!');
 					connectionStatus.current = 'connected';
-					
+					setConnectionState('connected');
+
 					// Reset retry count on successful connection
 					retryCount.current = 0;
 					
@@ -348,6 +359,8 @@ export function useChat({
 
 					// Always request conversation state explicitly (running/full history)
 					sendWebSocketMessage(ws, 'get_conversation_state');
+					// Reconcile canonical build-job state machine (esp. after reconnect)
+					sendWebSocketMessage(ws, 'get_build_state');
 
 					// Request file generation for new chats only
 					if (!disableGenerate && urlChatId === 'new') {
@@ -404,8 +417,9 @@ export function useChat({
 	const handleConnectionFailure = useCallback(
 		(wsUrl: string, disableGenerate: boolean, reason: string) => {
 			connectionStatus.current = 'failed';
-			
+
 			if (retryCount.current >= maxRetries) {
+				setConnectionState('failed');
 				logger.error(`💥 WebSocket connection failed permanently after ${maxRetries + 1} attempts`);
 				sendMessage(createAIMessage('websocket_failed', `🚨 Connection failed permanently after ${maxRetries + 1} attempts.\n\n❌ Reason: ${reason}\n\n🔄 Please refresh the page to try again.`));
 				
@@ -419,7 +433,9 @@ export function useChat({
 			}
 
 			retryCount.current++;
-			
+			// Surface "Reconnecting..." to the UI and freeze phase advance.
+			setConnectionState('reconnecting');
+
 			// Exponential backoff: 2^attempt * 1000ms (1s, 2s, 4s, 8s, 16s)
 			const retryDelay = Math.pow(2, retryCount.current) * 1000;
 			const maxDelay = 30000; // Cap at 30 seconds
@@ -768,6 +784,9 @@ export function useChat({
 		phaseTimeline,
 		isThinking,
 		onCompleteBootstrap,
+		// Canonical build-job state machine + connection lifecycle
+		buildJob,
+		connectionState,
 		// Deployment and generation control
 		isDeploying,
 		cloudflareDeploymentUrl,

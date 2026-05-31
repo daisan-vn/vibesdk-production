@@ -1,5 +1,5 @@
 import type { WebSocket } from 'partysocket';
-import type { WebSocketMessage, BlueprintType, ConversationMessage, AgentState, PhasicState, BehaviorType, ProjectType, TemplateDetails } from '@/api-types';
+import type { WebSocketMessage, BlueprintType, ConversationMessage, AgentState, PhasicState, BehaviorType, ProjectType, TemplateDetails, BuildJob } from '@/api-types';
 import { deduplicateMessages, isAssistantMessageDuplicate } from './deduplicate-messages';
 import { logger } from '@/utils/logger';
 import { getFileType } from '@/utils/string';
@@ -72,7 +72,8 @@ export interface HandleMessageDeps {
     clearDeploymentTimeout?: () => void;
 
     setBackendErrorDialog: React.Dispatch<React.SetStateAction<BackendErrorDialogState>>;
-    
+    setBuildJob?: React.Dispatch<React.SetStateAction<BuildJob | undefined>>;
+
     // Current state
     isInitialStateRestored: boolean;
     blueprint: BlueprintType | undefined;
@@ -127,6 +128,7 @@ export function createWebSocketMessageHandler(deps: HandleMessageDeps) {
 
     return (websocket: WebSocket, message: WebSocketMessage) => {
         const {
+            setBuildJob,
             setFiles,
             setPhaseTimeline,
             setProjectStages,
@@ -184,6 +186,16 @@ export function createWebSocketMessageHandler(deps: HandleMessageDeps) {
         }
         
         switch (message.type) {
+            case 'build_state': {
+                // Canonical build-job snapshot from the server state machine.
+                // This is the authoritative source for Done / deployability.
+                logger.debug('🧭 build_state', message.buildJob?.state, {
+                    completedPhases: message.buildJob?.completedPhases,
+                    deployable: message.buildJob?.deployable,
+                });
+                setBuildJob?.(message.buildJob);
+                break;
+            }
             case 'conversation_cleared': {
                 // Reset chat messages to a subtle tool-event entry indicating success
                 setMessages(() => appendToolEvent([], 'conversation_cleared', {
@@ -194,6 +206,9 @@ export function createWebSocketMessageHandler(deps: HandleMessageDeps) {
             }
             case 'agent_connected': {
                 const { state, templateDetails, previewUrl } = message;
+                // Reconcile the canonical build-job from server state on (re)connect.
+                const restoredBuildJob = (state as unknown as { buildJob?: BuildJob }).buildJob;
+                if (restoredBuildJob) setBuildJob?.(restoredBuildJob);
                 if (!isInitialStateRestored) {
                     logger.debug('📥 Performing initial state restoration');
 

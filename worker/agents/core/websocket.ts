@@ -118,8 +118,11 @@ export async function handleWebSocketMessage(
                     shouldBeGenerating: false 
                 });
                 
+                // Transition the canonical build-job to `aborted` and notify clients
+                agent.abortBuildJob('stop_generation requested');
+
                 sendToConnection(connection, WebSocketMessageResponses.GENERATION_STOPPED, {
-                    message: wasCancelled 
+                    message: wasCancelled
                         ? 'Inference operation cancelled successfully'
                         : 'No active inference to cancel'
                 });
@@ -278,6 +281,16 @@ export async function handleWebSocketMessage(
                 } catch (error) {
                     logger.error('Error fetching conversation state:', error);
                     sendError(connection, `Error fetching conversation state: ${error instanceof Error ? error.message : String(error)}`);
+                }
+                break;
+            case WebSocketMessageRequests.GET_BUILD_STATE:
+                // Canonical build-job snapshot for reconnect reconciliation.
+                // getBuildJob() also lazily fails a phase that has timed out.
+                try {
+                    agent.sendBuildState(connection);
+                } catch (error) {
+                    logger.error('Error fetching build state:', error);
+                    sendError(connection, `Error fetching build state: ${error instanceof Error ? error.message : String(error)}`);
                 }
                 break;
             // Disabled it for now

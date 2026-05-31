@@ -131,6 +131,9 @@ export default function Chat() {
 		projectStages,
 		phaseTimeline,
 		isThinking,
+		// Canonical build-job state machine + connection lifecycle
+		buildJob,
+		connectionState,
 		// Deployment and generation control
 		isDeploying,
 		cloudflareDeploymentUrl,
@@ -453,6 +456,26 @@ export default function Chat() {
 		return phaseTimeline.length > 0 && phaseTimeline[0].status === 'completed';
 	}, [phaseTimeline]);
 
+	// Canonical gates from the server-driven build-job state machine.
+	// Deploy is only allowed when the job is genuinely deployable; the build is
+	// only "Done" when the state machine says so (never on 0/1 phases). Fall back
+	// to the legacy phase-1 heuristic only when no buildJob exists yet (old sessions).
+	const isDeployable = buildJob ? buildJob.deployable === true : isPhase1Complete;
+	const isBuildDone = buildJob ? buildJob.state === 'done' : false;
+	const isReconnecting = connectionState === 'reconnecting';
+
+	// Stall watchdog: while a build is active and connected, periodically ask the
+	// server for the canonical build-job. The server lazily fails a phase that has
+	// exceeded its timeout (see buildJob.checkTimeout) and broadcasts the result.
+	const buildActiveForWatch = isGenerating || isGeneratingBlueprint || isDebugging;
+	useEffect(() => {
+		if (!buildActiveForWatch || connectionState !== 'connected' || !websocket) return;
+		const id = setInterval(() => {
+			sendWebSocketMessage(websocket, 'get_build_state');
+		}, 30000);
+		return () => clearInterval(id);
+	}, [buildActiveForWatch, connectionState, websocket]);
+
 	const isGitHubExportReady = useMemo(() => {
 		if (behaviorType === 'agentic') {
 			return files.length > 0 && !!urlChatId;
@@ -772,11 +795,17 @@ export default function Chat() {
 					layout="position"
 					className="flex-1 shrink-0 flex flex-col basis-0 w-full max-w-none md:max-w-lg relative z-10 h-full min-h-0"
 				>
-					<div 
+					{isReconnecting && (
+						<div className="flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-1.5 text-xs font-medium text-amber-500">
+							<LoaderCircle className="size-3.5 animate-spin" />
+							Mất kết nối — đang kết nối lại… (tiến trình build được giữ nguyên)
+						</div>
+					)}
+					<div
 					className={clsx(
 						'flex-1 overflow-y-auto min-h-0 chat-messages-scroll',
 						isDebugging && 'animate-debug-pulse'
-					)} 
+					)}
 					ref={messagesContainerRef}
 				>
 						<div className="pt-5 px-4 pb-4 text-sm flex flex-col gap-5">
@@ -882,6 +911,8 @@ export default function Chat() {
 									isDebugging={isDebugging}
 									isGenerating={isGenerating}
 									isThinking={isThinking}
+									buildDone={isBuildDone}
+									isReconnecting={isReconnecting}
 								/>
 							)}
 
@@ -895,7 +926,7 @@ export default function Chat() {
 									className="px-4 mb-6"
 								>
 									<DeploymentControls
-										isPhase1Complete={isPhase1Complete}
+										isPhase1Complete={isDeployable}
 										isDeploying={isDeploying}
 										deploymentUrl={cloudflareDeploymentUrl}
 										instanceId={chatId || ''}

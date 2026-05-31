@@ -148,6 +148,9 @@ export type {
   ModelConfigsInfo
 } from 'worker/api/websocketTypes';
 
+// Build-job state machine (canonical build progress / deployability)
+export type { BuildJob, BuildJobState } from 'worker/agents/core/buildJob';
+
 // Database/Schema Types commonly used in frontend
 export type { 
   App,

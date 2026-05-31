@@ -5,6 +5,12 @@ import type { CodeIssue, RuntimeError, StaticAnalysisResponse, TemplateDetails }
 import type { CodeFixResult } from "../services/code-fixer";
 import { IssueReport } from "../agents/domain/values/IssueReport";
 import type { RateLimitExceededError } from 'shared/types/errors';
+import type { BuildJob } from "../agents/core/buildJob";
+
+type BuildStateMessage = {
+    type: 'build_state';
+    buildJob: BuildJob;
+};
 
 type ErrorMessage = {
     type: 'error';
@@ -628,7 +634,8 @@ export type WebSocketMessage =
 	| ServerLogMessage
 	| VaultUnlockedMessage
 	| VaultLockedMessage
-	| VaultRequiredMessage;
+	| VaultRequiredMessage
+	| BuildStateMessage;
 
 // A type representing all possible message type strings (e.g., 'generation_started', 'file_generating', etc.)
 export type WebSocketMessageType = WebSocketMessage['type'];
