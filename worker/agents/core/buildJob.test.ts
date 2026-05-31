@@ -33,7 +33,7 @@ describe('buildJob state machine', () => {
 	it('runs the happy path to done', () => {
 		let job = createBuildJob(clock);
 		job = feed(job, 'generation_started');
-		expect(job.state).toBe('planning');
+		expect(job.state).toBe('analyzing');
 		job = feed(job, 'blueprint_updated');
 		expect(job.state).toBe('blueprint_ready');
 		job = feed(job, 'phase_implementing', { requiredPhasesTotal: 1 });
@@ -105,8 +105,8 @@ describe('buildJob state machine', () => {
 
 	it('times out a stalled phase into failed', () => {
 		let job = createBuildJob(clock);
-		job = feed(job, 'generation_started'); // planning
-		const limit = PHASE_TIMEOUTS.planning!;
+		job = feed(job, 'generation_started'); // analyzing
+		const limit = PHASE_TIMEOUTS.analyzing!;
 		const timedOut = checkTimeout(job, job.lastTransitionAt + limit + 1);
 		expect(timedOut).not.toBeNull();
 		expect(timedOut!.state).toBe('failed');

@@ -11,6 +11,7 @@
 
 export type BuildJobState =
 	| 'queued'
+	| 'analyzing'
 	| 'planning'
 	| 'blueprint_ready'
 	| 'generating_code'
@@ -26,6 +27,7 @@ export type BuildJobState =
 /** Forward progression order (used for "is this a forward step" checks). */
 export const BUILD_PROGRESS_ORDER: BuildJobState[] = [
 	'queued',
+	'analyzing',
 	'planning',
 	'blueprint_ready',
 	'generating_code',
@@ -85,6 +87,7 @@ export interface BuildJob {
  */
 export const PHASE_TIMEOUTS: Partial<Record<BuildJobState, number>> = {
 	queued: 60_000,
+	analyzing: 120_000,
 	planning: 180_000,
 	blueprint_ready: 120_000,
 	generating_code: 600_000, // a phase can legitimately take a while
@@ -128,8 +131,9 @@ export function createBuildJob(now: number): BuildJob {
  * separately. `done` is additionally guarded by `canMarkDone`.
  */
 const ALLOWED: Record<BuildJobState, BuildJobState[]> = {
-	queued: ['planning'],
-	planning: ['blueprint_ready', 'generating_code'],
+	queued: ['analyzing', 'planning'],
+	analyzing: ['planning', 'blueprint_ready', 'generating_code'],
+	planning: ['blueprint_ready', 'generating_code', 'analyzing'],
 	blueprint_ready: ['generating_code'],
 	generating_code: [
 		'generating_code',
@@ -145,8 +149,8 @@ const ALLOWED: Record<BuildJobState, BuildJobState[]> = {
 	deployable: ['done', 'generating_code', 'preview_starting', 'installing_dependencies'],
 	done: ['generating_code', 'planning'],
 	// from control states we resume into working states
-	failed: ['queued', 'planning', 'generating_code'],
-	aborted: ['queued', 'planning', 'generating_code'],
+	failed: ['queued', 'analyzing', 'planning', 'generating_code'],
+	aborted: ['queued', 'analyzing', 'planning', 'generating_code'],
 	reconnecting: BUILD_PROGRESS_ORDER.concat(['reconnecting']),
 };
 
@@ -288,13 +292,14 @@ export function applyMessageToBuildJob(
 			if (job.state === 'queued' || job.state === 'reconnecting' || isTerminalState(job.state)) {
 				const fresh = createBuildJob(now);
 				fresh.retryCount = job.retryCount;
-				return transition(fresh, 'planning', now, { note: 'generation started', log });
+				// First visible step: analyzing the request before any blueprint/code.
+				return transition(fresh, 'analyzing', now, { note: 'analyzing request', log });
 			}
 			return job;
 		}
 		case 'blueprint_updated':
 		case 'blueprint_chunk':
-			return job.state === 'planning' || job.state === 'queued'
+			return job.state === 'analyzing' || job.state === 'planning' || job.state === 'queued'
 				? t('blueprint_ready', { note: 'blueprint available' })
 				: job;
 		case 'phase_generating':

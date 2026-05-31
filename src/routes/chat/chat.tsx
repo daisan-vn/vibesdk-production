@@ -9,6 +9,7 @@ import {
 import { useParams, useSearchParams, useNavigate, useBlocker } from 'react-router';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileChatHeader } from './components/mobile-chat-header';
+import { BuildStatusBar } from './components/build-status-bar';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -523,7 +524,7 @@ export default function Chat() {
 	// fall back to the live activity flags. This is what keeps the Stop button
 	// visible whenever generation is actually in progress.
 	const RUNNING_BUILD_STATES = useMemo(
-		() => new Set(['planning', 'blueprint_ready', 'generating_code', 'installing_dependencies', 'preview_starting']),
+		() => new Set(['analyzing', 'planning', 'blueprint_ready', 'generating_code', 'installing_dependencies', 'preview_starting']),
 		[],
 	);
 	const isJobRunning = buildJob ? RUNNING_BUILD_STATES.has(buildJob.state) : false;
@@ -807,11 +808,27 @@ export default function Chat() {
 					layout="position"
 					className="flex-1 shrink-0 flex flex-col basis-0 w-full max-w-none md:max-w-lg relative z-10 h-full min-h-0"
 				>
-					{isReconnecting && (
+					{isReconnecting && !(buildJob && buildJob.state !== 'queued') && (
 						<div className="flex shrink-0 items-center justify-center gap-2 border-b border-amber-500/20 bg-amber-500/10 px-4 py-1.5 text-xs font-medium text-amber-500">
 							<LoaderCircle className="size-3.5 animate-spin" />
 							Mất kết nối — đang kết nối lại… (tiến trình build được giữ nguyên)
 						</div>
+					)}
+					{buildJob && buildJob.state !== 'queued' && (
+						<BuildStatusBar
+							state={buildJob.state}
+							lastError={buildJob.lastError}
+							progress={progress}
+							total={total}
+							previewUrl={previewUrl}
+							isReconnecting={isReconnecting}
+							onStop={handleStopGeneration}
+							onRetry={handleResumeGeneration}
+							onOpenPreview={() => {
+								setView('preview');
+								if (isMobile) setMobilePreviewOpen(true);
+							}}
+						/>
 					)}
 					<div
 					className={clsx(
