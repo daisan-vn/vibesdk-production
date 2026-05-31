@@ -10,6 +10,7 @@ import { useParams, useSearchParams, useNavigate, useBlocker } from 'react-route
 import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileChatHeader } from './components/mobile-chat-header';
 import { BuildStatusBar } from './components/build-status-bar';
+import { BlueprintCard } from './components/blueprint-card';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -753,6 +754,29 @@ export default function Chat() {
 		[websocket, isChatDisabled, sendUserMessage, scrollToBottom],
 	);
 
+	// --- Blueprint card actions ---
+	const handleBuildNow = useCallback(() => {
+		if (!websocket) return;
+		if (chatMode !== 'build') handleModeChange('build');
+		sendWebSocketMessage(websocket, 'user_suggestion', {
+			message: 'Proceed to build the app now based on the approved blueprint.',
+			mode: 'build',
+		});
+		sendUserMessage('Build now');
+		requestAnimationFrame(() => scrollToBottom());
+	}, [websocket, chatMode, handleModeChange, sendUserMessage, scrollToBottom]);
+
+	const handleEditPlan = useCallback(() => {
+		setView('blueprint');
+		if (isMobile) setMobilePreviewOpen(true);
+	}, [isMobile]);
+
+	const handleAddRequirement = useCallback(() => {
+		const el = document.getElementById('daisan-composer') as HTMLTextAreaElement | null;
+		el?.focus();
+		el?.scrollIntoView({ block: 'nearest' });
+	}, []);
+
 	const [progress, total] = useMemo((): [number, number] => {
 		// Calculate phase progress instead of file progress
 		const completedPhases = phaseTimeline.filter(p => p.status === 'completed').length;
@@ -912,6 +936,17 @@ export default function Chat() {
 										isThinking={true}
 									/>
 								</div>
+							)}
+
+							{/* Blueprint summary card (inline in the chat stream) */}
+							{isPhasicBlueprint(blueprint) && (
+								<BlueprintCard
+									blueprint={blueprint}
+									isBuilding={isBuildActive}
+									onBuildNow={handleBuildNow}
+									onEditPlan={handleEditPlan}
+									onAddRequirement={handleAddRequirement}
+								/>
 							)}
 
 							{/* Only show PhaseTimeline for phasic mode */}

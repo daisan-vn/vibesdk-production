@@ -281,6 +281,7 @@ export function ChatInput({
 								{/* Center: textarea (NEVER disabled while building) */}
 								<textarea
 									ref={textareaRef}
+									id="daisan-composer"
 									value={newMessage}
 									onChange={(e) => onMessageChange(e.target.value)}
 									onKeyDown={handleKeyDown}
