@@ -11,6 +11,7 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { MobileChatHeader } from './components/mobile-chat-header';
 import { BuildStatusBar } from './components/build-status-bar';
 import { BlueprintCard } from './components/blueprint-card';
+import { BuildLogFeed } from './components/build-log-feed';
 import { AnimatePresence, motion } from 'framer-motion';
 import { LoaderCircle, MoreHorizontal, RotateCcw, X } from 'lucide-react';
 import clsx from 'clsx';
@@ -978,6 +979,11 @@ export default function Chat() {
 									buildDone={isBuildDone}
 									isReconnecting={isReconnecting}
 								/>
+							)}
+
+							{/* Readable build activity (Summary / Technical) */}
+							{behaviorType !== 'agentic' && phaseTimeline.length > 0 && (
+								<BuildLogFeed phaseTimeline={phaseTimeline} />
 							)}
 
 							{/* Deployment and Generation Controls - Only for phasic mode */}
