@@ -15,6 +15,7 @@ import { useNavigate } from "react-router";
 
 import { PublicHeader } from "@/components/layout/public-header";
 import { LandingFooter } from "@/routes/home-sections";
+import { useI18n } from "@/contexts/i18n-context";
 
 import { SOLUTIONS } from "./data";
 
@@ -41,6 +42,7 @@ const SOLUTION_ICONS = [
 
 export default function SolutionsPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const solutions = SOLUTIONS as Solution[];
 
   return (
@@ -69,16 +71,16 @@ export default function SolutionsPage() {
             <div className="space-y-3">
               <span className="inline-flex items-center gap-2 rounded-full border border-border-primary bg-bg-3/60 px-3 py-1 text-xs text-text-secondary">
                 <Sparkles className="size-3.5 text-accent" />
-                Daisan commerce stack
+                {t("Daisan commerce stack", "Hệ sinh thái thương mại Daisan")}
               </span>
               <h1 className="bg-gradient-to-r from-text-primary to-text-primary/70 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
-                Solutions
+                {t("Solutions", "Giải pháp")}
               </h1>
               <p className="max-w-2xl text-sm leading-relaxed text-text-secondary">
-                Build every part of the Daisan commerce stack with AI — from PIM
-                and B2B/B2C catalogs to the DaisanStore storefront, showroom,
-                and lead-to-RFQ flows. Describe what you need and ship production
-                pages in minutes.
+                {t(
+                  "Build every part of the Daisan commerce stack with AI — from PIM and B2B/B2C catalogs to the DaisanStore storefront, showroom, and lead-to-RFQ flows. Describe what you need and ship production pages in minutes.",
+                  "Xây dựng mọi phần của hệ sinh thái thương mại Daisan bằng AI — từ PIM và danh mục B2B/B2C đến gian hàng DaisanStore, showroom và quy trình từ khách hàng tiềm năng đến RFQ. Mô tả điều bạn cần và đưa các trang lên môi trường thực tế chỉ trong vài phút.",
+                )}
               </p>
             </div>
           </div>
@@ -142,11 +144,16 @@ export default function SolutionsPage() {
                 <Rocket className="size-6" />
               </div>
               <h2 className="text-2xl font-semibold tracking-tight text-text-primary">
-                Ship your commerce stack with Daisan AI
+                {t(
+                  "Ship your commerce stack with Daisan AI",
+                  "Triển khai hệ sinh thái thương mại của bạn với Daisan AI",
+                )}
               </h2>
               <p className="max-w-xl text-sm leading-relaxed text-text-secondary">
-                Start from a prompt and let Daisan AI assemble the catalogs,
-                storefront, and deployment for your building-materials business.
+                {t(
+                  "Start from a prompt and let Daisan AI assemble the catalogs, storefront, and deployment for your building-materials business.",
+                  "Bắt đầu từ một câu mô tả và để Daisan AI dựng danh mục, gian hàng và triển khai cho doanh nghiệp vật liệu xây dựng của bạn.",
+                )}
               </p>
             </div>
             <button
@@ -154,7 +161,7 @@ export default function SolutionsPage() {
               onClick={() => navigate("/")}
               className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
             >
-              Start building
+              {t("Start building", "Bắt đầu xây dựng")}
               <ArrowRight className="size-4" />
             </button>
           </div>

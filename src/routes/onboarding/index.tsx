@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { PublicHeader } from "@/components/layout/public-header";
 import { LandingFooter } from "@/routes/home-sections";
+import { useI18n } from "@/contexts/i18n-context";
 
 type Goal = {
   id: string;
@@ -33,49 +34,56 @@ type ProjectType = {
   icon: typeof Store;
 };
 
-const GOALS: Goal[] = [
-  { id: "storefront", label: "Build a storefront", icon: Store },
-  { id: "pim", label: "Manage products (PIM)", icon: Package },
-  { id: "b2b", label: "B2B portal", icon: Building2 },
-  { id: "rfq", label: "Lead & RFQ", icon: ClipboardList },
-  { id: "internal", label: "Internal tool", icon: Wrench },
-];
-
-const PROJECT_TYPES: ProjectType[] = [
-  {
-    id: "storefront",
-    title: "DaisanStore storefront",
-    description:
-      "A premium B2C shop for tiles and building materials with cart and checkout.",
-    icon: ShoppingBag,
-  },
-  {
-    id: "catalog",
-    title: "Product catalog",
-    description:
-      "A PIM-backed catalog with rich specs, variants and showroom-ready galleries.",
-    icon: Boxes,
-  },
-  {
-    id: "portal",
-    title: "B2B / RFQ portal",
-    description:
-      "A wholesale portal with quote requests, lead capture and account pricing.",
-    icon: LayoutTemplate,
-  },
-];
-
-const STEP_LABELS = [
-  "Create workspace",
-  "Choose your goal",
-  "First project type",
-  "Start with a prompt",
-];
-
 const TOTAL_STEPS = 4;
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
+
+  const GOALS: Goal[] = [
+    { id: "storefront", label: t("Build a storefront", "Xây dựng gian hàng"), icon: Store },
+    { id: "pim", label: t("Manage products (PIM)", "Quản lý sản phẩm (PIM)"), icon: Package },
+    { id: "b2b", label: t("B2B portal", "Cổng B2B"), icon: Building2 },
+    { id: "rfq", label: t("Lead & RFQ", "Khách hàng tiềm năng & RFQ"), icon: ClipboardList },
+    { id: "internal", label: t("Internal tool", "Công cụ nội bộ"), icon: Wrench },
+  ];
+
+  const PROJECT_TYPES: ProjectType[] = [
+    {
+      id: "storefront",
+      title: t("DaisanStore storefront", "Gian hàng DaisanStore"),
+      description: t(
+        "A premium B2C shop for tiles and building materials with cart and checkout.",
+        "Cửa hàng B2C cao cấp cho gạch ốp lát và vật liệu xây dựng, có giỏ hàng và thanh toán.",
+      ),
+      icon: ShoppingBag,
+    },
+    {
+      id: "catalog",
+      title: t("Product catalog", "Danh mục sản phẩm"),
+      description: t(
+        "A PIM-backed catalog with rich specs, variants and showroom-ready galleries.",
+        "Danh mục dựa trên PIM với thông số chi tiết, biến thể và thư viện ảnh sẵn sàng cho showroom.",
+      ),
+      icon: Boxes,
+    },
+    {
+      id: "portal",
+      title: t("B2B / RFQ portal", "Cổng B2B / RFQ"),
+      description: t(
+        "A wholesale portal with quote requests, lead capture and account pricing.",
+        "Cổng bán sỉ với yêu cầu báo giá, thu thập khách hàng tiềm năng và giá theo tài khoản.",
+      ),
+      icon: LayoutTemplate,
+    },
+  ];
+
+  const STEP_LABELS = [
+    t("Create workspace", "Tạo không gian làm việc"),
+    t("Choose your goal", "Chọn mục tiêu của bạn"),
+    t("First project type", "Loại dự án đầu tiên"),
+    t("Start with a prompt", "Bắt đầu bằng một câu lệnh"),
+  ];
 
   const [step, setStep] = useState(1);
   const [workspaceName, setWorkspaceName] = useState("");
@@ -129,11 +137,13 @@ export default function OnboardingPage() {
                 </div>
                 <div>
                   <h1 className="bg-gradient-to-r from-text-primary to-text-primary/70 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
-                    Welcome to Daisan AI
+                    {t("Welcome to Daisan AI", "Chào mừng đến với Daisan AI")}
                   </h1>
                   <p className="mt-2 max-w-xl text-sm text-text-secondary">
-                    Let's set up your workspace and ship your first
-                    commerce experience. This takes about a minute.
+                    {t(
+                      "Let's set up your workspace and ship your first commerce experience. This takes about a minute.",
+                      "Hãy thiết lập không gian làm việc và ra mắt trải nghiệm thương mại đầu tiên của bạn. Việc này chỉ mất khoảng một phút.",
+                    )}
                   </p>
                 </div>
               </div>
@@ -141,7 +151,7 @@ export default function OnboardingPage() {
                 onClick={() => navigate("/")}
                 className="self-start rounded-full border border-border-primary bg-bg-3/60 px-3 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
               >
-                Skip for now
+                {t("Skip for now", "Bỏ qua bây giờ")}
               </button>
             </div>
 
@@ -149,7 +159,7 @@ export default function OnboardingPage() {
             <div className="relative mt-7">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">
-                  Step {step} of {TOTAL_STEPS}
+                  {t(`Step ${step} of ${TOTAL_STEPS}`, `Bước ${step} / ${TOTAL_STEPS}`)}
                 </p>
                 <p className="text-xs text-text-secondary">
                   {STEP_LABELS[step - 1]}
@@ -180,30 +190,42 @@ export default function OnboardingPage() {
           <div className="mt-6">
             {step === 1 && (
               <StepShell
-                title="Create your workspace"
-                subtitle="Workspaces keep your projects, products and team in one place."
+                title={t("Create your workspace", "Tạo không gian làm việc của bạn")}
+                subtitle={t(
+                  "Workspaces keep your projects, products and team in one place.",
+                  "Không gian làm việc giúp tập hợp dự án, sản phẩm và đội ngũ của bạn tại một nơi.",
+                )}
               >
                 <label className="block text-sm font-medium text-text-primary">
-                  Workspace name
+                  {t("Workspace name", "Tên không gian làm việc")}
                 </label>
                 <input
                   type="text"
                   value={workspaceName}
                   onChange={(e) => setWorkspaceName(e.target.value)}
-                  placeholder="e.g. Daisan Tiles Co."
+                  placeholder={t("e.g. Daisan Tiles Co.", "ví dụ: Công ty Gạch Daisan")}
                   autoFocus
                   className="mt-2 w-full rounded-xl border border-border-primary bg-bg-3/60 px-4 py-3 text-sm text-text-primary outline-none ring-accent/20 transition-shadow placeholder:text-text-tertiary focus:ring-2"
                 />
                 <p className="mt-2 text-xs text-text-tertiary">
-                  You can rename this later in settings.
+                  {t(
+                    "You can rename this later in settings.",
+                    "Bạn có thể đổi tên này sau trong phần cài đặt.",
+                  )}
                 </p>
               </StepShell>
             )}
 
             {step === 2 && (
               <StepShell
-                title="What do you want to build first?"
-                subtitle="Pick a goal so we can tailor templates and AI suggestions."
+                title={t(
+                  "What do you want to build first?",
+                  "Bạn muốn xây dựng điều gì trước?",
+                )}
+                subtitle={t(
+                  "Pick a goal so we can tailor templates and AI suggestions.",
+                  "Chọn một mục tiêu để chúng tôi điều chỉnh mẫu và gợi ý AI cho phù hợp.",
+                )}
               >
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {GOALS.map((g) => {
@@ -238,8 +260,14 @@ export default function OnboardingPage() {
 
             {step === 3 && (
               <StepShell
-                title="Choose your first project type"
-                subtitle="A starting point for your build. You can change everything with prompts."
+                title={t(
+                  "Choose your first project type",
+                  "Chọn loại dự án đầu tiên của bạn",
+                )}
+                subtitle={t(
+                  "A starting point for your build. You can change everything with prompts.",
+                  "Một điểm khởi đầu cho dự án của bạn. Bạn có thể thay đổi mọi thứ bằng câu lệnh.",
+                )}
               >
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   {PROJECT_TYPES.map((p) => {
@@ -285,14 +313,16 @@ export default function OnboardingPage() {
                     </span>
                     <div>
                       <p className="text-sm font-medium text-text-primary">
-                        Connect GitHub
+                        {t("Connect GitHub", "Kết nối GitHub")}
                         <span className="ml-2 rounded-full border border-border-primary bg-bg-3/60 px-2 py-0.5 text-[10px] font-normal uppercase tracking-wide text-text-tertiary">
-                          Optional
+                          {t("Optional", "Tùy chọn")}
                         </span>
                       </p>
                       <p className="text-xs text-text-secondary">
-                        Sync your project to a repo and deploy from Git. You can
-                        skip this and connect later.
+                        {t(
+                          "Sync your project to a repo and deploy from Git. You can skip this and connect later.",
+                          "Đồng bộ dự án của bạn với một repo và triển khai từ Git. Bạn có thể bỏ qua và kết nối sau.",
+                        )}
                       </p>
                     </div>
                   </div>
@@ -300,7 +330,7 @@ export default function OnboardingPage() {
                     type="button"
                     className="shrink-0 rounded-xl border border-border-primary bg-bg-2/40 px-4 py-2 text-xs font-medium text-text-secondary transition-colors hover:text-text-primary"
                   >
-                    Connect GitHub
+                    {t("Connect GitHub", "Kết nối GitHub")}
                   </button>
                 </div>
               </StepShell>
@@ -308,24 +338,36 @@ export default function OnboardingPage() {
 
             {step === 4 && (
               <StepShell
-                title="Start with a prompt"
-                subtitle="Describe what you want to build. The AI will scaffold your first project."
+                title={t("Start with a prompt", "Bắt đầu bằng một câu lệnh")}
+                subtitle={t(
+                  "Describe what you want to build. The AI will scaffold your first project.",
+                  "Mô tả điều bạn muốn xây dựng. AI sẽ dựng khung dự án đầu tiên của bạn.",
+                )}
               >
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   rows={5}
                   autoFocus
-                  placeholder="e.g. Build a DaisanStore storefront for porcelain tiles with a hero, filterable product grid, product detail pages and an RFQ form."
+                  placeholder={t(
+                    "e.g. Build a DaisanStore storefront for porcelain tiles with a hero, filterable product grid, product detail pages and an RFQ form.",
+                    "ví dụ: Xây dựng gian hàng DaisanStore cho gạch porcelain với phần hero, lưới sản phẩm có bộ lọc, trang chi tiết sản phẩm và biểu mẫu RFQ.",
+                  )}
                   className="w-full resize-none rounded-xl border border-border-primary bg-bg-3/60 px-4 py-3 text-sm text-text-primary outline-none ring-accent/20 transition-shadow placeholder:text-text-tertiary focus:ring-2"
                 />
 
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-text-tertiary">Try:</span>
+                  <span className="text-xs text-text-tertiary">{t("Try:", "Thử:")}</span>
                   {[
-                    "A B2B quote portal for contractors",
-                    "A showroom landing page for a new tile collection",
-                    "A PIM admin to manage product specs",
+                    t("A B2B quote portal for contractors", "Cổng báo giá B2B cho nhà thầu"),
+                    t(
+                      "A showroom landing page for a new tile collection",
+                      "Trang giới thiệu showroom cho bộ sưu tập gạch mới",
+                    ),
+                    t(
+                      "A PIM admin to manage product specs",
+                      "Trang quản trị PIM để quản lý thông số sản phẩm",
+                    ),
                   ].map((suggestion) => (
                     <button
                       key={suggestion}
@@ -340,13 +382,13 @@ export default function OnboardingPage() {
 
                 <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs text-text-tertiary">
-                    Prefer to wire up your repo first?{" "}
+                    {t("Prefer to wire up your repo first?", "Muốn thiết lập repo trước?")}{" "}
                     <button
                       type="button"
                       className="inline-flex items-center gap-1 text-accent hover:underline"
                     >
                       <Github className="size-3.5" />
-                      Connect GitHub (optional)
+                      {t("Connect GitHub (optional)", "Kết nối GitHub (tùy chọn)")}
                     </button>
                   </p>
                   <button
@@ -355,7 +397,7 @@ export default function OnboardingPage() {
                     className="inline-flex items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                   >
                     <Rocket className="size-4" />
-                    Start building
+                    {t("Start building", "Bắt đầu xây dựng")}
                   </button>
                 </div>
               </StepShell>
@@ -370,7 +412,7 @@ export default function OnboardingPage() {
               className="inline-flex items-center gap-2 rounded-xl border border-border-primary bg-bg-2/40 px-4 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               <ArrowLeft className="size-4" />
-              Back
+              {t("Back", "Quay lại")}
             </button>
 
             <div className="flex items-center gap-3">
@@ -378,7 +420,7 @@ export default function OnboardingPage() {
                 onClick={() => navigate("/")}
                 className="text-xs text-text-tertiary transition-colors hover:text-text-secondary"
               >
-                Skip
+                {t("Skip", "Bỏ qua")}
               </button>
               {step < TOTAL_STEPS && (
                 <button
@@ -386,7 +428,7 @@ export default function OnboardingPage() {
                   disabled={!canContinue}
                   className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                 >
-                  Next
+                  {t("Next", "Tiếp tục")}
                   <ArrowRight className="size-4" />
                 </button>
               )}

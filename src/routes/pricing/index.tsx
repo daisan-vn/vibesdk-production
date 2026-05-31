@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Sparkles, Check, Coins, Building2 } from "lucide-react";
 import { PublicHeader } from "@/components/layout/public-header";
 import { LandingFooter } from "@/routes/home-sections";
+import { useI18n } from "@/contexts/i18n-context";
 
 type Tier = {
   name: string;
@@ -20,110 +21,174 @@ type FaqItem = {
   answer: string;
 };
 
-const tiers: Tier[] = [
+type T = (en: string, vi: string) => string;
+
+const buildTiers = (t: T): Tier[] => [
   {
     name: "Free",
     price: "$0",
-    cadence: "/ month",
-    description: "Explore Daisan AI and ship small projects.",
+    cadence: t("/ month", "/ tháng"),
+    description: t(
+      "Explore Daisan AI and ship small projects.",
+      "Khám phá Daisan AI và triển khai các dự án nhỏ.",
+    ),
     features: [
-      "Monthly starter credit pool",
-      "AI chat builder for pages & flows",
-      "1 published project",
-      "DaisanStore storefront preview",
-      "Community support",
+      t("Monthly starter credit pool", "Quỹ tín dụng khởi đầu hằng tháng"),
+      t(
+        "AI chat builder for pages & flows",
+        "Trình tạo bằng AI chat cho trang & luồng",
+      ),
+      t("1 published project", "1 dự án đã xuất bản"),
+      t("DaisanStore storefront preview", "Xem trước gian hàng DaisanStore"),
+      t("Community support", "Hỗ trợ cộng đồng"),
     ],
-    cta: "Start free",
+    cta: t("Start free", "Bắt đầu miễn phí"),
     to: "/",
   },
   {
     name: "Pro",
     price: "$29",
-    cadence: "/ month",
-    description: "For individual builders who ship often.",
+    cadence: t("/ month", "/ tháng"),
+    description: t(
+      "For individual builders who ship often.",
+      "Dành cho người xây dựng cá nhân triển khai thường xuyên.",
+    ),
     features: [
-      "Expanded monthly credits",
-      "Unlimited drafts, more published projects",
-      "PIM & catalog connectors",
-      "Custom domain on storefronts",
-      "Build history & version restore",
-      "Email support",
+      t("Expanded monthly credits", "Mở rộng tín dụng hằng tháng"),
+      t(
+        "Unlimited drafts, more published projects",
+        "Bản nháp không giới hạn, nhiều dự án xuất bản hơn",
+      ),
+      t("PIM & catalog connectors", "Kết nối PIM & danh mục sản phẩm"),
+      t("Custom domain on storefronts", "Tên miền tùy chỉnh cho gian hàng"),
+      t(
+        "Build history & version restore",
+        "Lịch sử bản dựng & khôi phục phiên bản",
+      ),
+      t("Email support", "Hỗ trợ qua email"),
     ],
-    cta: "Choose Pro",
+    cta: t("Choose Pro", "Chọn Pro"),
     to: "/",
     highlighted: true,
   },
   {
     name: "Business",
     price: "$99",
-    cadence: "/ month",
-    description: "For teams running B2B and B2C together.",
+    cadence: t("/ month", "/ tháng"),
+    description: t(
+      "For teams running B2B and B2C together.",
+      "Dành cho đội nhóm vận hành đồng thời B2B và B2C.",
+    ),
     features: [
-      "Team workspace & shared credits",
-      "B2B + B2C connectors and RFQ/lead flows",
-      "Multiple production deployments",
-      "Showroom & DaisanStore integrations",
-      "Roles & granular permissions",
-      "Priority support",
+      t("Team workspace & shared credits", "Không gian nhóm & tín dụng dùng chung"),
+      t(
+        "B2B + B2C connectors and RFQ/lead flows",
+        "Kết nối B2B + B2C và luồng RFQ/khách hàng tiềm năng",
+      ),
+      t("Multiple production deployments", "Nhiều lần triển khai chính thức"),
+      t(
+        "Showroom & DaisanStore integrations",
+        "Tích hợp showroom & DaisanStore",
+      ),
+      t("Roles & granular permissions", "Vai trò & phân quyền chi tiết"),
+      t("Priority support", "Hỗ trợ ưu tiên"),
     ],
-    cta: "Choose Business",
+    cta: t("Choose Business", "Chọn Business"),
     to: "/",
   },
   {
     name: "Enterprise",
-    price: "Custom",
+    price: t("Custom", "Tùy chỉnh"),
     cadence: "",
-    description: "Governance and security for the whole org.",
+    description: t(
+      "Governance and security for the whole org.",
+      "Quản trị và bảo mật cho toàn bộ tổ chức.",
+    ),
     features: [
-      "SSO & SCIM provisioning",
-      "Security center & audit logs",
-      "Custom connectors & private deployments",
-      "Dedicated capacity and credit pools",
-      "Governance, SLAs & onboarding",
-      "Named technical contact",
+      t("SSO & SCIM provisioning", "Cấp phát SSO & SCIM"),
+      t("Security center & audit logs", "Trung tâm bảo mật & nhật ký kiểm toán"),
+      t(
+        "Custom connectors & private deployments",
+        "Kết nối tùy chỉnh & triển khai riêng",
+      ),
+      t(
+        "Dedicated capacity and credit pools",
+        "Dung lượng và quỹ tín dụng riêng",
+      ),
+      t(
+        "Governance, SLAs & onboarding",
+        "Quản trị, SLA & hỗ trợ triển khai ban đầu",
+      ),
+      t("Named technical contact", "Đầu mối kỹ thuật chuyên trách"),
     ],
-    cta: "Contact sales",
+    cta: t("Contact sales", "Liên hệ kinh doanh"),
     to: "/enterprise",
   },
 ];
 
-const creditUses: string[] = [
-  "Prompts — every AI message that plans or edits your build.",
-  "Plans — generating structured page, flow, and data plans.",
-  "Builds — compiling and previewing storefronts and apps.",
-  "Deploys — pushing projects live to production endpoints.",
+const buildCreditUses = (t: T): string[] => [
+  t(
+    "Prompts — every AI message that plans or edits your build.",
+    "Câu lệnh — mỗi tin nhắn AI lập kế hoạch hoặc chỉnh sửa bản dựng của bạn.",
+  ),
+  t(
+    "Plans — generating structured page, flow, and data plans.",
+    "Kế hoạch — tạo cấu trúc trang, luồng và kế hoạch dữ liệu.",
+  ),
+  t(
+    "Builds — compiling and previewing storefronts and apps.",
+    "Bản dựng — biên dịch và xem trước gian hàng và ứng dụng.",
+  ),
+  t(
+    "Deploys — pushing projects live to production endpoints.",
+    "Triển khai — đưa dự án lên chính thức tại các điểm cuối sản xuất.",
+  ),
 ];
 
-const faqs: FaqItem[] = [
+const buildFaqs = (t: T): FaqItem[] => [
   {
-    question: "What is a credit?",
-    answer:
+    question: t("What is a credit?", "Tín dụng là gì?"),
+    answer: t(
       "Credits are the shared unit that prompts, plans, builds, and deploys draw from. Each plan includes a monthly pool, and unused work simply costs fewer credits.",
+      "Tín dụng là đơn vị chung mà các câu lệnh, kế hoạch, bản dựng và lần triển khai sử dụng. Mỗi gói bao gồm một quỹ hằng tháng, và công việc dùng ít hơn đơn giản là tốn ít tín dụng hơn.",
+    ),
   },
   {
-    question: "Can I change plans later?",
-    answer:
+    question: t("Can I change plans later?", "Tôi có thể đổi gói sau này không?"),
+    answer: t(
       "Yes. Upgrade or downgrade at any time — your credit pool and limits adjust on the next cycle, and your projects stay intact.",
+      "Có. Nâng cấp hoặc hạ cấp bất cứ lúc nào — quỹ tín dụng và giới hạn của bạn sẽ điều chỉnh vào chu kỳ kế tiếp, và các dự án của bạn vẫn được giữ nguyên.",
+    ),
   },
   {
-    question: "Do credits roll over?",
-    answer:
+    question: t("Do credits roll over?", "Tín dụng có được chuyển sang kỳ sau không?"),
+    answer: t(
       "Monthly credits reset each cycle. Business and Enterprise plans can add reserved capacity if your team needs predictable headroom.",
+      "Tín dụng hằng tháng được đặt lại mỗi chu kỳ. Gói Business và Enterprise có thể bổ sung dung lượng dự phòng nếu đội nhóm của bạn cần khoảng dư ổn định.",
+    ),
   },
   {
-    question: "Which connectors are included?",
-    answer:
+    question: t("Which connectors are included?", "Những kết nối nào được bao gồm?"),
+    answer: t(
       "Pro adds PIM and catalog connectors; Business unlocks B2B, B2C, RFQ, and showroom flows; Enterprise supports custom and private connectors.",
+      "Pro bổ sung kết nối PIM và danh mục sản phẩm; Business mở khóa các luồng B2B, B2C, RFQ và showroom; Enterprise hỗ trợ kết nối tùy chỉnh và riêng.",
+    ),
   },
   {
-    question: "How does Enterprise pricing work?",
-    answer:
+    question: t("How does Enterprise pricing work?", "Giá Enterprise hoạt động thế nào?"),
+    answer: t(
       "Enterprise is tailored to your seats, deployments, security needs, and connectors. Contact sales for a scoped quote.",
+      "Enterprise được tùy chỉnh theo số người dùng, số lần triển khai, nhu cầu bảo mật và kết nối của bạn. Liên hệ kinh doanh để nhận báo giá theo phạm vi.",
+    ),
   },
 ];
 
 export default function PricingPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
+  const tiers = buildTiers(t);
+  const creditUses = buildCreditUses(t);
+  const faqs = buildFaqs(t);
 
   return (
     <div className="min-h-screen bg-bg-3">
@@ -149,10 +214,10 @@ export default function PricingPage() {
             </div>
             <div>
               <h1 className="bg-gradient-to-r from-text-primary to-text-primary/70 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
-                Pricing
+                {t("Pricing", "Bảng giá")}
               </h1>
               <p className="mt-2 text-sm text-text-secondary">
-                Start free. Scale as you ship.
+                {t("Start free. Scale as you ship.", "Bắt đầu miễn phí. Mở rộng khi bạn triển khai.")}
               </p>
             </div>
           </div>
@@ -175,7 +240,7 @@ export default function PricingPage() {
                 </h2>
                 {tier.highlighted ? (
                   <span className="rounded-full border border-border-primary bg-bg-3/60 px-3 py-1 text-xs text-accent">
-                    Popular
+                    {t("Popular", "Phổ biến")}
                   </span>
                 ) : null}
               </div>
@@ -219,7 +284,10 @@ export default function PricingPage() {
         </div>
 
         <p className="mt-3 text-xs text-text-tertiary">
-          Figures shown are illustrative examples, not final pricing.
+          {t(
+            "Figures shown are illustrative examples, not final pricing.",
+            "Các con số hiển thị chỉ mang tính minh họa, không phải giá cuối cùng.",
+          )}
         </p>
 
         {/* Credit usage explainer */}
@@ -230,10 +298,13 @@ export default function PricingPage() {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-text-primary">
-                Credit usage
+                {t("Credit usage", "Cách dùng tín dụng")}
               </h2>
               <p className="text-sm text-text-secondary">
-                One shared pool powers everything you build.
+                {t(
+                  "One shared pool powers everything you build.",
+                  "Một quỹ chung vận hành mọi thứ bạn xây dựng.",
+                )}
               </p>
             </div>
           </div>
@@ -253,7 +324,7 @@ export default function PricingPage() {
         {/* FAQ */}
         <div className="mt-8">
           <h2 className="text-xl font-semibold text-text-primary">
-            Frequently asked questions
+            {t("Frequently asked questions", "Câu hỏi thường gặp")}
           </h2>
           <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
             {faqs.map((faq) => (
@@ -288,10 +359,13 @@ export default function PricingPage() {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-text-primary">
-                  Need a tailored plan?
+                  {t("Need a tailored plan?", "Cần một gói riêng theo nhu cầu?")}
                 </h2>
                 <p className="text-sm text-text-secondary">
-                  Talk to us about governance, security, and custom connectors.
+                  {t(
+                    "Talk to us about governance, security, and custom connectors.",
+                    "Trao đổi với chúng tôi về quản trị, bảo mật và kết nối tùy chỉnh.",
+                  )}
                 </p>
               </div>
             </div>
@@ -301,7 +375,7 @@ export default function PricingPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
             >
               <Sparkles className="size-4" />
-              Start building
+              {t("Start building", "Bắt đầu xây dựng")}
             </button>
           </div>
         </div>

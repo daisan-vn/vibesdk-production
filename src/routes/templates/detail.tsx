@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { PublicHeader } from "@/components/layout/public-header";
 import { LandingFooter } from "@/routes/home-sections";
+import { useI18n } from "@/contexts/i18n-context";
 import { TEMPLATES } from "./data";
 
 type Template = {
@@ -43,6 +44,7 @@ function inclusionsFor(t: Template): string[] {
 export default function TemplateDetailPage() {
   const { slug } = useParams();
   const navigate = useNavigate();
+  const { t: translate } = useI18n();
 
   const templates = TEMPLATES as Template[];
 
@@ -75,18 +77,20 @@ export default function TemplateDetailPage() {
                 <LayoutTemplate className="size-6" />
               </div>
               <h1 className="mt-5 text-2xl font-semibold text-text-primary">
-                Template not found
+                {translate("Template not found", "Không tìm thấy mẫu")}
               </h1>
               <p className="mx-auto mt-2 max-w-md text-sm text-text-secondary">
-                We couldn't find a template matching that link. It may have
-                been renamed or removed from the gallery.
+                {translate(
+                  "We couldn't find a template matching that link. It may have been renamed or removed from the gallery.",
+                  "Chúng tôi không tìm thấy mẫu khớp với liên kết này. Có thể nó đã được đổi tên hoặc gỡ khỏi thư viện.",
+                )}
               </p>
               <button
                 onClick={() => navigate("/templates")}
                 className="mt-6 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
               >
                 <ArrowLeft className="size-4" />
-                Back to templates
+                {translate("Back to templates", "Quay lại mẫu")}
               </button>
             </div>
           </motion.div>
@@ -117,7 +121,7 @@ export default function TemplateDetailPage() {
             className="inline-flex items-center gap-2 rounded-full border border-border-primary bg-bg-3/60 px-3 py-1 text-xs text-text-secondary transition-colors hover:text-text-primary"
           >
             <ArrowLeft className="size-3.5" />
-            All templates
+            {translate("All templates", "Tất cả mẫu")}
           </button>
 
           {/* Header card */}
@@ -151,7 +155,7 @@ export default function TemplateDetailPage() {
                 className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
               >
                 <Sparkles className="size-4" />
-                Use template
+                {translate("Use template", "Dùng mẫu")}
               </button>
             </div>
           </div>
@@ -175,9 +179,14 @@ export default function TemplateDetailPage() {
                 />
                 <div className="relative flex flex-col items-center gap-2 text-text-primary/80">
                   <LayoutTemplate className="size-10" />
-                  <span className="text-sm font-medium">Live preview</span>
+                  <span className="text-sm font-medium">
+                    {translate("Live preview", "Xem trước trực tiếp")}
+                  </span>
                   <span className="text-xs text-text-tertiary">
-                    Generated when you open this template in chat
+                    {translate(
+                      "Generated when you open this template in chat",
+                      "Được tạo khi bạn mở mẫu này trong cửa sổ trò chuyện",
+                    )}
                   </span>
                 </div>
               </div>
@@ -185,7 +194,7 @@ export default function TemplateDetailPage() {
 
             <div className="rounded-2xl border border-border-primary bg-bg-2/40 p-5">
               <h2 className="text-sm font-semibold text-text-primary">
-                What's included
+                {translate("What's included", "Bao gồm những gì")}
               </h2>
               <ul className="mt-4 space-y-3">
                 {inclusionsFor(t).map((item) => (
@@ -201,7 +210,7 @@ export default function TemplateDetailPage() {
                 onClick={useTemplate}
                 className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
               >
-                Use template
+                {translate("Use template", "Dùng mẫu")}
                 <ArrowRight className="size-4" />
               </button>
             </div>
@@ -212,7 +221,7 @@ export default function TemplateDetailPage() {
             <div>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-semibold text-text-primary">
-                  Related templates
+                  {translate("Related templates", "Mẫu liên quan")}
                 </h2>
                 <span className="rounded-full border border-border-primary bg-bg-3/60 px-3 py-1 text-xs text-text-tertiary">
                   {t.cat}
@@ -235,7 +244,7 @@ export default function TemplateDetailPage() {
                       {item.desc}
                     </p>
                     <span className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-accent">
-                      View template
+                      {translate("View template", "Xem mẫu")}
                       <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
                     </span>
                   </button>

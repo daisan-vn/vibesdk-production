@@ -3,6 +3,7 @@ import { ArrowRight, Info } from 'react-feather';
 import { Loader2, Hammer } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/auth-context';
+import { useI18n } from '@/contexts/i18n-context';
 import { type ProjectModeOption } from '../components/project-mode-selector';
 import { MAX_AGENT_QUERY_LENGTH, SUPPORTED_IMAGE_MIME_TYPES, type ProjectType } from '@/api-types';
 import { useFeature } from '@/features';
@@ -29,6 +30,7 @@ import {
 
 export default function Home() {
 	const navigate = useNavigate();
+	const { t } = useI18n();
 	const { requireAuth } = useAuthGuard();
 	const [projectMode, setProjectMode] = useState<ProjectType>('app');
 	const [selectedMode, setSelectedMode] = useState<WorkModeId>('consult');
@@ -48,13 +50,13 @@ export default function Home() {
 			id: def.id,
 			label:
 				def.id === 'presentation'
-					? 'Slides'
+					? t('Slides', 'Trình chiếu')
 					: def.id === 'general'
-						? 'General'
-						: 'App',
+						? t('General', 'Tổng quát')
+						: t('App', 'Ứng dụng'),
 			description: def.description,
 		}));
-	}, [capabilities, getEnabledFeatures, isLoadingCapabilities]);
+	}, [capabilities, getEnabledFeatures, isLoadingCapabilities, t]);
 
 
 	useEffect(() => {
@@ -97,7 +99,10 @@ export default function Home() {
 	const handleCreateApp = (query: string, mode: ProjectType, executionMode?: 'plan' | 'build') => {
 		if (query.length > MAX_AGENT_QUERY_LENGTH) {
 			toast.error(
-				`Prompt too large (${query.length} characters). Maximum allowed is ${MAX_AGENT_QUERY_LENGTH} characters.`,
+				t(
+					`Prompt too large (${query.length} characters). Maximum allowed is ${MAX_AGENT_QUERY_LENGTH} characters.`,
+					`Prompt quá dài (${query.length} ký tự). Tối đa cho phép là ${MAX_AGENT_QUERY_LENGTH} ký tự.`,
+				),
 			);
 			return;
 		}
@@ -155,7 +160,10 @@ export default function Home() {
 		// Build pre-flight: refuse vague build requests.
 		if (mode.isBuild && text.length < 15) {
 			toast.warning(
-				'Build mode: hãy mô tả rõ hơn — trang/component cần build, framework, hệ thống Daisan nào, dùng mock hay API.',
+				t(
+					'Build mode: please describe in more detail — the page/component to build, the framework, which Daisan system, and whether to use mock data or an API.',
+					'Build mode: hãy mô tả rõ hơn — trang/component cần build, framework, hệ thống Daisan nào, dùng mock hay API.',
+				),
 			);
 			return;
 		}
@@ -163,7 +171,7 @@ export default function Home() {
 		// Soft intent nudge: build-like content while in an advisory mode.
 		const detected = detectIntent(text);
 		if (!mode.isBuild && detected === 'build') {
-			toast.info('Nội dung có vẻ là yêu cầu Build. Chọn chế độ "Build" nếu bạn muốn tạo code.');
+			toast.info(t('This looks like a Build request. Select "Build" mode if you want to generate code.', 'Nội dung có vẻ là yêu cầu Build. Chọn chế độ "Build" nếu bạn muốn tạo code.'));
 		}
 
 		// Advisory modes (Hỏi/Tư vấn/Kế hoạch/Học/Review/Sửa lỗi) → conversational
@@ -219,11 +227,13 @@ export default function Home() {
 							discoverReady ? "mt-48" : "mt-[20vh] sm:mt-[24vh] md:mt-[28vh]"
 						)}>
 						<h1 className="text-center font-semibold leading-[1.07] tracking-tight text-4xl sm:text-5xl md:text-[3.5rem] w-full mb-3 bg-clip-text text-transparent bg-gradient-to-br from-text-primary via-text-primary to-accent">
-							Build Daisan systems with AI
+							{t('Build Daisan systems with AI', 'Xây hệ thống Daisan bằng AI')}
 						</h1>
 						<p className="text-center text-text-tertiary text-sm sm:text-base max-w-xl mb-5 leading-relaxed">
-							Create PIM modules, storefront pages, B2B workflows, showroom
-							dashboards and sales tools — just by chatting with AI.
+							{t(
+								'Create PIM modules, storefront pages, B2B workflows, showroom dashboards and sales tools — just by chatting with AI.',
+								'Tạo module PIM, trang bán hàng, quy trình B2B, dashboard showroom và công cụ bán hàng — chỉ bằng cách trò chuyện với AI.',
+							)}
 						</p>
 
 						{/* Work mode selector — AI tư vấn/hỏi/lập kế hoạch trước, chỉ Build khi chọn Build */}
@@ -259,7 +269,10 @@ export default function Home() {
 						{mode.isBuild && (
 							<div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-400">
 								<Hammer className="size-3.5 shrink-0" />
-								Build mode sẽ tạo code/giao diện. AI sẽ chạy pre-flight và hỏi lại nếu thiếu thông tin.
+								{t(
+									'Build mode will generate code/UI. The AI runs a pre-flight check and will ask back if information is missing.',
+									'Build mode sẽ tạo code/giao diện. AI sẽ chạy pre-flight và hỏi lại nếu thiếu thông tin.',
+								)}
 							</div>
 						)}
 
@@ -279,8 +292,11 @@ export default function Home() {
 
 						{/* Advisory tagline */}
 						<p className="mt-5 max-w-lg text-center text-xs leading-relaxed text-text-tertiary/70">
-							Daisan.ai sẽ tư vấn trước, lập kế hoạch khi cần, và chỉ build khi bạn chọn{' '}
-							<span className="font-medium text-accent">Build</span> hoặc xác nhận rõ ràng.
+							{t(
+								'Daisan AI advises first, plans when needed, and only builds when you choose',
+								'Daisan AI sẽ tư vấn trước, lập kế hoạch khi cần, và chỉ build khi bạn chọn',
+							)}{' '}
+							<span className="font-medium text-accent">Build</span> {t('or confirm explicitly.', 'hoặc xác nhận rõ ràng.')}
 						</p>
 
 						{/* Daisan use-cases */}
@@ -307,7 +323,10 @@ export default function Home() {
 							<div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-bg-4/50 dark:bg-bg-2/50 border border-accent/20 dark:border-accent/30 shadow-sm">
 								<Info className="size-4 text-accent flex-shrink-0 mt-0.5" />
 								<p className="text-xs text-text-tertiary leading-relaxed">
-									<span className="font-medium text-text-secondary">Images Beta:</span> Images guide app layout and design but may not be replicated exactly. The coding agent cannot access images directly for app assets.
+									<span className="font-medium text-text-secondary">{t('Images Beta:', 'Hình ảnh (Beta):')}</span> {t(
+										'Images guide app layout and design but may not be replicated exactly. The coding agent cannot access images directly for app assets.',
+										'Hình ảnh giúp định hướng bố cục và thiết kế của ứng dụng nhưng có thể không được tái tạo chính xác. Tác nhân lập trình không thể truy cập trực tiếp hình ảnh để làm tài nguyên cho ứng dụng.',
+									)}
 								</p>
 							</div>
 						</motion.div>
@@ -326,8 +345,8 @@ export default function Home() {
 							className={clsx('max-w-6xl mx-auto px-4 z-10', images.length > 0 ? 'mt-10' : 'mt-16 mb-8')}
 						>
 							<div className='flex flex-col items-start'>
-								<h2 className="text-2xl font-medium text-text-secondary/80">Discover Apps built by the community</h2>
-								<div ref={discoverLinkRef} className="text-md font-light mb-4 text-text-tertiary hover:underline underline-offset-4 select-text cursor-pointer" onClick={() => navigate('/discover')} >View All</div>
+								<h2 className="text-2xl font-medium text-text-secondary/80">{t('Discover Apps built by the community', 'Khám phá ứng dụng do cộng đồng tạo')}</h2>
+								<div ref={discoverLinkRef} className="text-md font-light mb-4 text-text-tertiary hover:underline underline-offset-4 select-text cursor-pointer" onClick={() => navigate('/discover')} >{t('View All', 'Xem tất cả')}</div>
 								<motion.div
 									layout
 									transition={{ duration: 0.4 }}

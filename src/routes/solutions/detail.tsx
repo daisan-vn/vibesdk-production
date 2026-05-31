@@ -10,10 +10,12 @@ import {
 } from "lucide-react";
 import { PublicHeader } from "@/components/layout/public-header";
 import { LandingFooter } from "@/routes/home-sections";
+import { useI18n } from "@/contexts/i18n-context";
 import { getSolution, SOLUTIONS } from "./data";
 
 export default function SolutionDetailPage() {
   const navigate = useNavigate();
+  const { t } = useI18n();
   const { slug } = useParams();
   const solution = slug ? getSolution(slug) : undefined;
 
@@ -32,11 +34,13 @@ export default function SolutionDetailPage() {
                 <Layers className="size-5" />
               </div>
               <h1 className="mt-4 text-xl font-semibold text-text-primary">
-                Solution not found
+                {t("Solution not found", "Không tìm thấy giải pháp")}
               </h1>
               <p className="mt-2 text-sm text-text-secondary">
-                We couldn't find a solution for that link. It may have been
-                renamed or removed.
+                {t(
+                  "We couldn't find a solution for that link. It may have been renamed or removed.",
+                  "Chúng tôi không tìm thấy giải pháp cho liên kết này. Có thể nó đã được đổi tên hoặc gỡ bỏ.",
+                )}
               </p>
               <button
                 type="button"
@@ -44,7 +48,7 @@ export default function SolutionDetailPage() {
                 className="mt-5 inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
               >
                 <ArrowLeft className="size-4" />
-                Back to solutions
+                {t("Back to solutions", "Quay lại giải pháp")}
               </button>
             </div>
           </motion.div>
@@ -98,7 +102,7 @@ export default function SolutionDetailPage() {
                     className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
                   >
                     <Sparkles className="size-4" />
-                    Start building
+                    {t("Start building", "Bắt đầu xây dựng")}
                   </button>
                   <button
                     type="button"
@@ -106,7 +110,7 @@ export default function SolutionDetailPage() {
                     className="inline-flex items-center gap-2 rounded-xl border border-border-primary bg-bg-3/60 px-5 py-2.5 text-sm font-medium text-text-secondary transition-colors hover:text-text-primary"
                   >
                     <ArrowLeft className="size-4" />
-                    All solutions
+                    {t("All solutions", "Tất cả giải pháp")}
                   </button>
                 </div>
               </div>
@@ -116,7 +120,7 @@ export default function SolutionDetailPage() {
           {/* The problem */}
           <section className="rounded-2xl border border-border-primary bg-bg-2/40 p-5">
             <h2 className="text-lg font-semibold text-text-primary">
-              The problem
+              {t("The problem", "Vấn đề")}
             </h2>
             <p className="mt-3 max-w-3xl text-sm leading-relaxed text-text-secondary">
               {solution.problem}
@@ -126,7 +130,7 @@ export default function SolutionDetailPage() {
           {/* Features grid */}
           <section>
             <h2 className="text-lg font-semibold text-text-primary">
-              What you get
+              {t("What you get", "Bạn nhận được gì")}
             </h2>
             <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {solution.features.map((feature) => (
@@ -147,7 +151,9 @@ export default function SolutionDetailPage() {
 
           {/* Outcomes */}
           <section className="rounded-2xl border border-border-primary bg-bg-2/40 p-5">
-            <h2 className="text-lg font-semibold text-text-primary">Outcomes</h2>
+            <h2 className="text-lg font-semibold text-text-primary">
+              {t("Outcomes", "Kết quả")}
+            </h2>
             <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
               {solution.outcomes.map((outcome) => (
                 <li key={outcome} className="flex items-start gap-3">
@@ -164,7 +170,7 @@ export default function SolutionDetailPage() {
               <div className="flex items-center gap-2">
                 <LayoutTemplate className="size-4 text-accent" />
                 <h2 className="text-lg font-semibold text-text-primary">
-                  Related templates
+                  {t("Related templates", "Mẫu liên quan")}
                 </h2>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -194,11 +200,14 @@ export default function SolutionDetailPage() {
             <div className="relative flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
               <div>
                 <h2 className="text-xl font-semibold text-text-primary">
-                  Ship {solution.name} faster
+                  {t("Ship", "Triển khai")} {solution.name}{" "}
+                  {t("faster", "nhanh hơn")}
                 </h2>
                 <p className="mt-2 max-w-xl text-sm text-text-secondary">
-                  Describe what you need and let Daisan AI scaffold the pages,
-                  data, and flows for your commerce stack.
+                  {t(
+                    "Describe what you need and let Daisan AI scaffold the pages, data, and flows for your commerce stack.",
+                    "Mô tả điều bạn cần và để Daisan AI dựng sẵn các trang, dữ liệu và quy trình cho hệ sinh thái thương mại của bạn.",
+                  )}
                 </p>
               </div>
               <button
@@ -207,7 +216,7 @@ export default function SolutionDetailPage() {
                 className="inline-flex items-center gap-2 rounded-xl bg-accent px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent/20 transition-transform hover:scale-[1.02]"
               >
                 <Sparkles className="size-4" />
-                Start building
+                {t("Start building", "Bắt đầu xây dựng")}
               </button>
             </div>
           </section>
@@ -216,7 +225,7 @@ export default function SolutionDetailPage() {
           {related.length > 0 && (
             <section>
               <h2 className="text-lg font-semibold text-text-primary">
-                Related solutions
+                {t("Related solutions", "Giải pháp liên quan")}
               </h2>
               <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {related.map((item) => (
@@ -236,7 +245,7 @@ export default function SolutionDetailPage() {
                       {item.tagline}
                     </p>
                     <span className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-text-tertiary transition-colors group-hover:text-accent">
-                      View solution
+                      {t("View solution", "Xem giải pháp")}
                       <ArrowRight className="size-3.5" />
                     </span>
                   </button>

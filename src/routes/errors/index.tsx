@@ -10,6 +10,7 @@ import {
   ArrowRight,
   type LucideIcon,
 } from "lucide-react";
+import { useI18n } from "@/contexts/i18n-context";
 
 type ActionButton = {
   label: string;
@@ -36,6 +37,7 @@ function ErrorShell({
   children,
 }: ErrorShellProps) {
   const navigate = useNavigate();
+  const { t } = useI18n();
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-bg-3 px-4 py-16">
@@ -79,7 +81,7 @@ function ErrorShell({
 
           <div className="mt-8 rounded-2xl border border-border-primary bg-bg-3/60 p-5 text-left">
             <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">
-              Possible causes
+              {t("Possible causes", "Nguyên nhân có thể")}
             </p>
             <ul className="mt-3 space-y-2">
               {causes.map((cause) => (
@@ -130,56 +132,83 @@ function ErrorShell({
 }
 
 export function DeploymentFailedPage() {
+  const { t } = useI18n();
   return (
     <ErrorShell
       icon={AlertTriangle}
-      title="Deployment failed"
-      subtitle="We couldn't finish deploying your Daisan app. The latest build did not complete successfully, so no new version was published."
+      title={t("Deployment failed", "Triển khai thất bại")}
+      subtitle={t(
+        "We couldn't finish deploying your Daisan app. The latest build did not complete successfully, so no new version was published.",
+        "Chúng tôi không thể hoàn tất triển khai ứng dụng Daisan của bạn. Bản build mới nhất không hoàn thành thành công nên không có phiên bản mới nào được phát hành.",
+      )}
       causes={[
-        "A build error in your app code stopped the deployment.",
-        "A required environment variable or secret is missing.",
-        "The build exceeded its time limit and timed out.",
+        t(
+          "A build error in your app code stopped the deployment.",
+          "Một lỗi build trong mã ứng dụng của bạn đã làm dừng quá trình triển khai.",
+        ),
+        t(
+          "A required environment variable or secret is missing.",
+          "Thiếu một biến môi trường hoặc khóa bí mật bắt buộc.",
+        ),
+        t(
+          "The build exceeded its time limit and timed out.",
+          "Bản build vượt quá giới hạn thời gian và đã hết thời gian chờ.",
+        ),
       ]}
       actions={[
         {
-          label: "Open deployments",
+          label: t("Open deployments", "Mở triển khai"),
           to: "/deployments",
           icon: LayoutDashboard,
           primary: true,
         },
-        { label: "View build logs", to: "/deployments", icon: ScrollText },
-        { label: "Go to dashboard", to: "/", icon: LayoutDashboard },
+        { label: t("View build logs", "Xem nhật ký build"), to: "/deployments", icon: ScrollText },
+        { label: t("Go to dashboard", "Về bảng điều khiển"), to: "/", icon: LayoutDashboard },
       ]}
     />
   );
 }
 
 export function DomainNotMappedPage() {
+  const { t } = useI18n();
   return (
     <ErrorShell
       icon={Globe}
-      title="Domain not mapped"
-      subtitle="This hostname isn't connected to a Daisan app yet. We received the request but found no route mapped to your deployment."
+      title={t("Domain not mapped", "Tên miền chưa được ánh xạ")}
+      subtitle={t(
+        "This hostname isn't connected to a Daisan app yet. We received the request but found no route mapped to your deployment.",
+        "Tên máy chủ này chưa được kết nối với ứng dụng Daisan nào. Chúng tôi đã nhận yêu cầu nhưng không tìm thấy tuyến nào được ánh xạ tới bản triển khai của bạn.",
+      )}
       causes={[
-        "Wildcard DNS for your subdomains is not configured.",
-        "A custom domain was added but not yet verified or mapped.",
-        "The domain isn't registered in the Daisan deployment registry.",
+        t(
+          "Wildcard DNS for your subdomains is not configured.",
+          "DNS wildcard cho các tên miền phụ của bạn chưa được cấu hình.",
+        ),
+        t(
+          "A custom domain was added but not yet verified or mapped.",
+          "Một tên miền tùy chỉnh đã được thêm nhưng chưa được xác minh hoặc ánh xạ.",
+        ),
+        t(
+          "The domain isn't registered in the Daisan deployment registry.",
+          "Tên miền chưa được đăng ký trong sổ đăng ký triển khai của Daisan.",
+        ),
       ]}
       actions={[
         {
-          label: "Check domain mapping",
+          label: t("Check domain mapping", "Kiểm tra ánh xạ tên miền"),
           to: "/deployments",
           icon: Network,
           primary: true,
         },
-        { label: "Open deployments", to: "/deployments", icon: LayoutDashboard },
-        { label: "Go to dashboard", to: "/", icon: LayoutDashboard },
+        { label: t("Open deployments", "Mở triển khai"), to: "/deployments", icon: LayoutDashboard },
+        { label: t("Go to dashboard", "Về bảng điều khiển"), to: "/", icon: LayoutDashboard },
       ]}
     />
   );
 }
 
 export function AppNotFoundPage() {
+  const { t } = useI18n();
   const hostname =
     typeof window !== "undefined" && window.location?.hostname
       ? window.location.hostname
@@ -189,32 +218,50 @@ export function AppNotFoundPage() {
   return (
     <ErrorShell
       icon={SearchX}
-      title="App not found"
-      subtitle="We looked up this address but couldn't find a matching Daisan app to serve. It may have moved, been removed, or never finished deploying."
+      title={t("App not found", "Không tìm thấy ứng dụng")}
+      subtitle={t(
+        "We looked up this address but couldn't find a matching Daisan app to serve. It may have moved, been removed, or never finished deploying.",
+        "Chúng tôi đã tra cứu địa chỉ này nhưng không tìm thấy ứng dụng Daisan tương ứng để phục vụ. Có thể nó đã được chuyển đi, bị xóa, hoặc chưa hoàn tất triển khai.",
+      )}
       causes={[
-        "The app record no longer exists or was deleted.",
-        "The most recent deployment failed and nothing was published.",
-        "The domain isn't mapped to this app.",
-        "The build is still running — try again in a moment.",
-        "The URL is incorrect or points to the wrong app slug.",
+        t(
+          "The app record no longer exists or was deleted.",
+          "Bản ghi ứng dụng không còn tồn tại hoặc đã bị xóa.",
+        ),
+        t(
+          "The most recent deployment failed and nothing was published.",
+          "Bản triển khai gần nhất thất bại và không có gì được phát hành.",
+        ),
+        t(
+          "The domain isn't mapped to this app.",
+          "Tên miền chưa được ánh xạ tới ứng dụng này.",
+        ),
+        t(
+          "The build is still running — try again in a moment.",
+          "Bản build vẫn đang chạy — vui lòng thử lại sau giây lát.",
+        ),
+        t(
+          "The URL is incorrect or points to the wrong app slug.",
+          "URL không chính xác hoặc trỏ tới sai slug ứng dụng.",
+        ),
       ]}
       actions={[
         {
-          label: "Open deployments",
+          label: t("Open deployments", "Mở triển khai"),
           to: "/deployments",
           icon: LayoutDashboard,
           primary: true,
         },
-        { label: "Go to dashboard", to: "/", icon: LayoutDashboard },
+        { label: t("Go to dashboard", "Về bảng điều khiển"), to: "/", icon: LayoutDashboard },
       ]}
     >
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
         <span className="rounded-full border border-border-primary bg-bg-3/60 px-3 py-1 text-xs text-text-tertiary">
-          hostname:{" "}
+          {t("hostname:", "tên máy chủ:")}{" "}
           <span className="font-medium text-text-secondary">{hostname}</span>
         </span>
         <span className="rounded-full border border-border-primary bg-bg-3/60 px-3 py-1 text-xs text-text-tertiary">
-          app slug:{" "}
+          {t("app slug:", "slug ứng dụng:")}{" "}
           <span className="font-medium text-text-secondary">{slug}</span>
         </span>
       </div>

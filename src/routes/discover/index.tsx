@@ -5,9 +5,11 @@ import { AppListContainer } from '@/components/shared/AppListContainer';
 import { AppFiltersForm } from '@/components/shared/AppFiltersForm';
 import { AppSortTabs } from '@/components/shared/AppSortTabs';
 import type { AppSortOption } from '@/api-types';
+import { useI18n } from '@/contexts/i18n-context';
 
 export default function DiscoverPage() {
 	const navigate = useNavigate();
+	const { t } = useI18n();
 	const [searchParams, setSearchParams] = useSearchParams();
 
 	// Derive initial sort from URL or localStorage, fallback to 'popular'
@@ -63,10 +65,10 @@ export default function DiscoverPage() {
 					{/* Header */}
 					<div className="mb-8">
 						<h1 className="text-6xl font-bold mb-3 font-[departureMono] text-accent">
-							DISCOVER
+							{t('DISCOVER', 'KHÁM PHÁ')}
 						</h1>
 						<p className="text-text-tertiary text-lg">
-							Explore apps built by the community
+							{t('Explore apps built by the community', 'Khám phá các ứng dụng do cộng đồng xây dựng')}
 						</p>
 					</div>
 
@@ -76,7 +78,7 @@ export default function DiscoverPage() {
 							searchQuery={searchQuery}
 							onSearchChange={setSearchQuery}
 							onSearchSubmit={handleSearchSubmit}
-							searchPlaceholder="Search apps..."
+							searchPlaceholder={t('Search apps...', 'Tìm kiếm ứng dụng...')}
 							showSearchButton={true}
 							filterFramework={filterFramework}
 							period={period}

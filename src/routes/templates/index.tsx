@@ -4,9 +4,11 @@ import { motion } from 'framer-motion';
 import { LayoutTemplate, ArrowRight, Search } from 'lucide-react';
 import { TEMPLATES, TEMPLATE_CATEGORIES } from './data';
 import { slugify } from './detail';
+import { useI18n } from '@/contexts/i18n-context';
 
 export default function TemplatesPage() {
 	const navigate = useNavigate();
+	const { t: translate } = useI18n();
 	const [activeCat, setActiveCat] = useState<string>('All');
 	const [query, setQuery] = useState('');
 
@@ -53,10 +55,13 @@ export default function TemplatesPage() {
 							</div>
 							<div>
 								<h1 className="bg-gradient-to-r from-text-primary to-text-primary/70 bg-clip-text text-3xl font-semibold tracking-tight text-transparent sm:text-4xl">
-									Templates
+									{translate('Templates', 'Mẫu')}
 								</h1>
 								<p className="mt-1 text-sm text-text-tertiary">
-									Production-ready starting points for the Daisan commerce ecosystem.
+									{translate(
+										'Production-ready starting points for the Daisan commerce ecosystem.',
+										'Các điểm khởi đầu sẵn sàng cho môi trường thực tế dành cho hệ sinh thái thương mại Daisan.',
+									)}
 								</p>
 							</div>
 						</div>
@@ -69,7 +74,7 @@ export default function TemplatesPage() {
 							<input
 								value={query}
 								onChange={(e) => setQuery(e.target.value)}
-								placeholder="Search templates…"
+								placeholder={translate('Search templates…', 'Tìm kiếm mẫu…')}
 								className="h-10 w-full rounded-xl border border-border-primary bg-bg-2/60 pl-9 pr-3 text-sm text-text-primary placeholder:text-text-tertiary focus:border-accent/50 focus:outline-none"
 							/>
 						</div>
@@ -84,7 +89,7 @@ export default function TemplatesPage() {
 											: 'rounded-full border border-border-primary bg-bg-2/40 px-3 py-1.5 text-xs text-text-tertiary transition-colors hover:border-accent/40 hover:text-text-primary'
 									}
 								>
-									{c}
+									{c === 'All' ? translate('All', 'Tất cả') : c}
 								</button>
 							))}
 						</div>
@@ -93,7 +98,7 @@ export default function TemplatesPage() {
 					{/* Grid */}
 					{filtered.length === 0 ? (
 						<div className="rounded-xl border border-border-primary bg-bg-2/40 p-12 text-center text-sm text-text-tertiary">
-							No templates match your search.
+							{translate('No templates match your search.', 'Không có mẫu nào phù hợp với tìm kiếm của bạn.')}
 						</div>
 					) : (
 						<div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -113,7 +118,7 @@ export default function TemplatesPage() {
 										{t.desc}
 									</p>
 									<span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-text-secondary transition-colors group-hover:text-accent">
-										Use template <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+										{translate('Use template', 'Dùng mẫu')} <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
 									</span>
 								</button>
 							))}
@@ -121,11 +126,11 @@ export default function TemplatesPage() {
 					)}
 
 					<p className="mt-10 text-center text-xs text-text-tertiary">
-						Don't see what you need?{' '}
+						{translate("Don't see what you need?", 'Không thấy thứ bạn cần?')}{' '}
 						<button onClick={() => navigate('/')} className="text-accent hover:underline">
-							Describe it from scratch
+							{translate('Describe it from scratch', 'Mô tả từ đầu')}
 						</button>{' '}
-						and let Daisan AI build it.
+						{translate('and let Daisan AI build it.', 'và để Daisan AI xây dựng nó.')}
 					</p>
 				</motion.div>
 			</div>
