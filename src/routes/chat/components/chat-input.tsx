@@ -56,6 +56,9 @@ interface ChatInputProps {
 	connectionState?: 'connecting' | 'connected' | 'reconnecting' | 'failed';
 	// Optional explicit stop handler (falls back to websocket stop_generation)
 	onStop?: () => void;
+	// Authoritative "a build is running" (from the server build-job state
+	// machine). Keeps Stop visible even after reload/reconnect.
+	isBuildActive?: boolean;
 }
 
 const MAX_TEXTAREA_HEIGHT = 160;
@@ -95,13 +98,16 @@ export function ChatInput({
 	onModeChange,
 	connectionState,
 	onStop,
+	isBuildActive,
 }: ChatInputProps) {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [isStopping, setIsStopping] = useState(false);
 	const [queuedCount, setQueuedCount] = useState(0);
 	const [showBigChangeConfirm, setShowBigChangeConfirm] = useState(false);
 
-	const isBuilding = isGenerating || isGeneratingBlueprint || isDebugging;
+	// Stop must be available whenever a build is genuinely running. Prefer the
+	// authoritative server signal; OR-in the live activity flags as a fallback.
+	const isBuilding = Boolean(isBuildActive) || isGenerating || isGeneratingBlueprint || isDebugging;
 	const hasText = newMessage.trim().length > 0;
 	const isReconnecting = connectionState === 'reconnecting' || connectionState === 'connecting';
 

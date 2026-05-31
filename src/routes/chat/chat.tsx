@@ -518,7 +518,17 @@ export default function Chat() {
 	}, [behaviorType, blueprint, files.length, previewUrl, streamedBootstrapFiles.length]);
 
 	// --- Navigation guard while a build is running ---
-	const isBuildActive = isGenerating || isGeneratingBlueprint || isDebugging;
+	// Authoritative "is a build running": prefer the server build-job state
+	// machine (survives reload/reconnect where local flags reset to false), and
+	// fall back to the live activity flags. This is what keeps the Stop button
+	// visible whenever generation is actually in progress.
+	const RUNNING_BUILD_STATES = useMemo(
+		() => new Set(['planning', 'blueprint_ready', 'generating_code', 'installing_dependencies', 'preview_starting']),
+		[],
+	);
+	const isJobRunning = buildJob ? RUNNING_BUILD_STATES.has(buildJob.state) : false;
+	const isBuildActive =
+		isGenerating || isGeneratingBlueprint || isDebugging || isThinking || isJobRunning;
 
 	// Warn on tab reload/close while building (beforeunload)
 	useEffect(() => {
@@ -1007,6 +1017,7 @@ export default function Chat() {
 						onModeChange={handleModeChange}
 						connectionState={connectionState}
 						onStop={handleStopGeneration}
+						isBuildActive={isBuildActive}
 				/>
 				</motion.div>
 
