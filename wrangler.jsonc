@@ -177,7 +177,8 @@
             "version": "1.0.0"
         },
         "CUSTOM_DOMAIN": "daisan.ai",
-        "USE_TUNNEL_FOR_PREVIEW": "true",
+        "CUSTOM_PREVIEW_DOMAIN": "daisan.app",
+        "USE_TUNNEL_FOR_PREVIEW": "",
         "MAX_SANDBOX_INSTANCES": "10",
         "SANDBOX_INSTANCE_TYPE": "standard-3"
     },
