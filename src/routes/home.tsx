@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { ArrowRight, Info } from 'react-feather';
-import { Loader2, Hammer } from 'lucide-react';
+import { Loader2, Hammer, Upload } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
@@ -20,6 +20,8 @@ import { checkCanSendPrompt } from '@/utils/usage-limit-checker';
 import { PromptBox } from '@/components/prompt-box';
 import { MeetDaisanSection, TemplatesTeaser, FinalCTA, LandingFooter } from './home-sections';
 import { ModelQualitySelector } from './chat/components/model-quality-selector';
+import { apiClient } from '@/lib/api-client';
+import { ndjsonStream } from '@/utils/ndjson-parser/ndjson-parser';
 import {
 	WorkModeSelector,
 	getWorkMode,
@@ -39,6 +41,47 @@ export default function Home() {
 	const { isLoadingCapabilities, capabilities, getEnabledFeatures } = useFeature();
 	const { data: limitsData, loading: usageLimitsLoading } = useLimitsContext();
 	const [showLimitDialog, setShowLimitDialog] = useState<React.ReactElement | null>(null);
+	const importInputRef = useRef<HTMLInputElement>(null);
+	const [importing, setImporting] = useState(false);
+
+	// Import an existing project (.zip): upload, read the create stream for the new
+	// session id, then open it in the chat workspace (same flow as a normal session).
+	const handleImportFile = useCallback(
+		async (event: React.ChangeEvent<HTMLInputElement>) => {
+			const file = event.target.files?.[0];
+			if (importInputRef.current) {
+				importInputRef.current.value = '';
+			}
+			if (!file) {
+				return;
+			}
+			if (!requireAuth({ requireFullAuth: true, actionContext: 'to import a project', intendedUrl: '/' })) {
+				return;
+			}
+			setImporting(true);
+			try {
+				toast.info(t('Uploading and analyzing project…', 'Đang tải lên & phân tích project…'));
+				const response = await apiClient.importProjectZip(file);
+				let agentId = '';
+				for await (const obj of ndjsonStream(response.stream)) {
+					if (obj.agentId) {
+						agentId = obj.agentId;
+						break;
+					}
+				}
+				if (agentId) {
+					navigate(`/chat/${agentId}`);
+				} else {
+					toast.error(t('Import did not return a session id', 'Import không trả về session id'));
+				}
+			} catch (error) {
+				toast.error(error instanceof Error ? error.message : 'Import failed');
+			} finally {
+				setImporting(false);
+			}
+		},
+		[navigate, requireAuth, t],
+	);
 
 	const handleConnectCloudflare = useCallback(() => {
 		window.location.href = `/oauth/login?return_url=${encodeURIComponent(window.location.href)}`;
@@ -261,6 +304,30 @@ export default function Home() {
 							leftActions={
 								<div className="flex items-center gap-2">
 									<ModelQualitySelector />
+									<input
+										ref={importInputRef}
+										type="file"
+										accept=".zip"
+										className="hidden"
+										onChange={handleImportFile}
+									/>
+									<button
+										type="button"
+										onClick={() => importInputRef.current?.click()}
+										disabled={importing}
+										title={t(
+											'Import an existing project (.zip from Lovable/GitHub)',
+											'Import project có sẵn (.zip từ Lovable/GitHub)',
+										)}
+										className="flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-2/40 px-3 py-1 text-xs text-text-tertiary transition-colors hover:border-accent/40 hover:text-text-primary disabled:opacity-50"
+									>
+										{importing ? (
+											<Loader2 className="size-3.5 animate-spin" />
+										) : (
+											<Upload className="size-3.5" />
+										)}
+										{t('Import', 'Import')}
+									</button>
 								</div>
 							}
 						/>

@@ -14,7 +14,10 @@ export function setupCodegenRoutes(app: Hono<AppEnv>): void {
     
     // CRITICAL: Create new app - requires full authentication
     app.post('/api/agent', setAuthLevel(AuthConfig.authenticated), adaptController(CodingAgentController, CodingAgentController.startCodeGeneration));
-    
+
+    // Import an existing project (.zip upload) and start a session seeded with its files
+    app.post('/api/imports/zip', setAuthLevel(AuthConfig.authenticated), adaptController(CodingAgentController, CodingAgentController.importFromZip));
+
     // ========================================
     // APP EDITING ROUTES (/chat/:id frontend)
     // ========================================

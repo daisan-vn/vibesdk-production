@@ -584,10 +584,27 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
         const client = this.getClient();
         const logger = this.getLog();
 
+        // Pick the dev command from package.json (imported projects may use a different
+        // script name). bun can run any package.json script regardless of install manager.
+        let initCommand = 'bun run dev';
+        const pkgFile = files.find((f) => f.filePath === 'package.json');
+        if (pkgFile) {
+            try {
+                const parsed = JSON.parse(pkgFile.fileContents) as { scripts?: Record<string, string> };
+                const scripts = parsed.scripts ?? {};
+                const devScript = scripts.dev ? 'dev' : scripts.start ? 'start' : null;
+                if (devScript) {
+                    initCommand = `bun run ${devScript}`;
+                }
+            } catch {
+                // Malformed package.json: keep the default command.
+            }
+        }
+
         const createResponse = await client.createInstance({
             files,
             projectName,
-            initCommand: 'bun run dev',
+            initCommand,
             envVars: localEnvVars
         });
 

@@ -942,15 +942,19 @@ export class SandboxSdkClient extends BaseSandboxService {
                 // Non-blocking - continue with setup
             }
             this.logger.info('Installing dependencies', { instanceId });
-            let installResult = await this.executeCommand(instanceId, `bun install`, { timeout: 180000 });
-            if (installResult.exitCode !== 0) {
-                this.logger.warn('bun install failed on first attempt, retrying once', {
+            // Package-manager fallback: imported (e.g. Lovable) projects may use npm/yarn
+            // rather than bun. Try managers in order until one succeeds.
+            const installCommands = ['bun install', 'npm install', 'yarn install'];
+            let installResult = await this.executeCommand(instanceId, installCommands[0], { timeout: 240000 });
+            for (let i = 1; i < installCommands.length && installResult.exitCode !== 0; i++) {
+                this.logger.warn('Install failed, trying next package manager', {
                     instanceId,
-                    stderr: installResult.stderr,
+                    failed: installCommands[i - 1],
+                    stderr: (installResult.stderr || '').slice(0, 400),
                 });
-                installResult = await this.executeCommand(instanceId, `bun install`, { timeout: 180000 });
+                installResult = await this.executeCommand(instanceId, installCommands[i], { timeout: 240000 });
             }
-            this.logger.info('Dependencies installed', { instanceId });
+            this.logger.info('Dependencies installed', { instanceId, exitCode: installResult.exitCode });
                 
             if (installResult.exitCode === 0) {
                 if (localEnvVars) {

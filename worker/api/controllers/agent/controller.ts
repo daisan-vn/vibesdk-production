@@ -30,6 +30,9 @@ import { hasTicketParam } from '../../../middleware/auth/ticketAuth';
 import { checkUsageAndBalance, getUserGateway } from '../../../services/rate-limit/usageChecker';
 import { readTokenCookie } from '../../../utils/oauthCookie';
 import { UsageLimitExceededError } from 'shared/types/errors';
+import { ZipExtractor } from 'worker/services/sandbox/zipExtractor';
+import type { TemplateFile } from 'worker/services/sandbox/sandboxTypes';
+import { normalizeImportedFiles, patchImportedFile, readImportedName } from 'worker/services/imports/lovableAdapter';
 
 const defaultCodeGenArgs: Partial<CodeGenArgs> = {
     language: 'typescript',
@@ -55,6 +58,70 @@ const resolveProjectType = (body: CodeGenArgs): ProjectType | 'auto' => {
  */
 export class CodingAgentController extends BaseController {
     static logger = createLogger('CodingAgentController');
+
+    /**
+     * Import an external project from an uploaded .zip and start a build session
+     * seeded with its files. Reuses startCodeGeneration so auth/limits/template/init
+     * all behave identically — only the session is pre-populated with imported files.
+     */
+    static async importFromZip(request: Request, env: Env, ctx: ExecutionContext, context: RouteContext): Promise<Response> {
+        try {
+            // The zip is sent as the raw request body (Content-Type: application/zip).
+            const zipBuffer = await request.arrayBuffer();
+            if (!zipBuffer || zipBuffer.byteLength === 0) {
+                return CodingAgentController.createErrorResponse('Empty upload — send the .zip as the request body', 400);
+            }
+
+            let extracted: TemplateFile[];
+            try {
+                extracted = ZipExtractor.extractFiles(zipBuffer);
+            } catch (error) {
+                return CodingAgentController.createErrorResponse(
+                    `Could not read the zip: ${error instanceof Error ? error.message : 'unknown error'}`,
+                    400,
+                );
+            }
+
+            const normalized = normalizeImportedFiles(extracted);
+            if (!normalized.some((f) => f.filePath === 'package.json')) {
+                return CodingAgentController.createErrorResponse(
+                    'No package.json found at the project root. Only a single Vite/React project (not a monorepo) can be imported right now.',
+                    400,
+                );
+            }
+
+            const externalFiles = normalized
+                .map(patchImportedFile)
+                .map((f) => ({ filePath: f.filePath, fileContents: f.fileContents }));
+            const projectName = readImportedName(externalFiles) ?? 'imported-project';
+
+            const codeGenBody: CodeGenArgs = {
+                query: `I imported an existing project named "${projectName}". Install its dependencies, run it, and show me a live preview. Do NOT rebuild it from scratch — keep the imported code and wait for my instructions on what to change.`,
+                externalFiles,
+                importSource: 'zip',
+                mode: 'plan',
+            };
+
+            const jsonRequest = new Request(request.url, {
+                method: 'POST',
+                headers: {
+                    'content-type': 'application/json',
+                    cookie: request.headers.get('cookie') ?? '',
+                },
+                body: JSON.stringify(codeGenBody),
+            });
+
+            this.logger.info('Importing project from zip', { fileCount: externalFiles.length, projectName });
+            return CodingAgentController.startCodeGeneration(jsonRequest, env, ctx, context);
+        } catch (error) {
+            this.logger.error('Import from zip failed', error);
+            return CodingAgentController.createErrorResponse(
+                `Import failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+                500,
+            );
+        }
+    }
+
     /**
      * Start the incremental code generation process
      */
@@ -116,9 +183,8 @@ export class CodingAgentController extends BaseController {
             const agentId = generateId();
             const modelConfigService = new ModelConfigService(env);
             const projectType = resolveProjectType(body);
-            const behaviorType = resolveBehaviorType(body);
 
-            this.logger.info(`Resolved behaviorType: ${behaviorType}, projectType: ${projectType} for agent ${agentId}`);
+            this.logger.info(`Resolved requested projectType: ${projectType} for agent ${agentId}`);
                                 
             // Fetch all user model configs, api keys and agent instance at once
             const userConfigsRecord = await modelConfigService.getUserModelConfigs(user.id);
@@ -206,6 +272,9 @@ export class CodingAgentController extends BaseController {
             this.logger.info(`Creating project of type: ${projectType}`);
 
             const { templateDetails, selection, projectType: finalProjectType } = await getTemplateForQuery(env, inferenceContext, query, projectType, body.images, this.logger, body.selectedTemplate);
+            const behaviorType = resolveBehaviorType({ ...body, projectType: finalProjectType });
+
+            this.logger.info(`Resolved behaviorType: ${behaviorType}, finalProjectType: ${finalProjectType} for agent ${agentId}`);
 
             const websocketUrl = `${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}/api/agent/${agentId}/ws`;
             const httpStatusUrl = `${url.origin}/api/agent/${agentId}`;
@@ -244,7 +313,7 @@ export class CodingAgentController extends BaseController {
                 mode,
             } as const;
 
-            const initArgs = { ...baseInitArgs, templateInfo: { templateDetails, selection } }
+            const initArgs = { ...baseInitArgs, externalFiles: body.externalFiles, importSource: body.importSource, templateInfo: { templateDetails, selection } }
 
             const agentPromise = agentInstance.initialize(initArgs) as Promise<AgentState>;
             agentPromise.then(async (_state: AgentState) => {

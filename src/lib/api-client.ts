@@ -63,6 +63,8 @@ import type{
 	CapabilitiesData,
 	VaultConfigResponse,
 	VaultStatusResponse,
+	ProjectBackupCreateData,
+	ProjectBackupListData,
 } from '@/api-types';
 import {
 	RateLimitExceededError,
@@ -579,6 +581,20 @@ class ApiClient {
 		});
 	}
 
+	async createProjectBackup(appId: string): Promise<ApiResponse<ProjectBackupCreateData>> {
+		return this.request<ProjectBackupCreateData>(`/api/apps/${appId}/backups`, {
+			method: 'POST',
+		});
+	}
+
+	async listProjectBackups(appId: string): Promise<ApiResponse<ProjectBackupListData>> {
+		return this.request<ProjectBackupListData>(`/api/apps/${appId}/backups`);
+	}
+
+	getProjectBackupDownloadUrl(appId: string, backupId: string): string {
+		return `${this.baseUrl}/api/apps/${appId}/backups/${backupId}/download`;
+	}
+
 	// /**
 	//  * Fork an app
 	//  */
@@ -659,8 +675,40 @@ class ApiClient {
 			// Handle any network or parsing errors
 			const errorMessage = error instanceof Error ? error.message : 'Failed to create agent session';
 			toast.error(errorMessage);
-			
+
             throw new Error(errorMessage);
+		}
+	}
+
+	/**
+	 * Import an existing project from a .zip and start a build session seeded with its
+	 * files. Returns the same streaming response shape as createAgentSession so callers
+	 * can reuse the create-session stream handler (agentId, websocketUrl, etc.).
+	 */
+	async importProjectZip(file: File): Promise<AgentStreamingResponse> {
+		try {
+			// Send the zip as the raw request body (the worker reads request.arrayBuffer()).
+			const response = await fetch('/api/imports/zip', {
+				method: 'POST',
+				headers: { 'content-type': 'application/zip', 'x-filename': file.name },
+				body: file,
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				let message = `Import failed with status ${response.status}`;
+				try {
+					const parsed = await response.clone().json();
+					message = parsed?.error?.message ?? message;
+				} catch {
+					// keep default message
+				}
+				throw new Error(message);
+			}
+			return { success: true, stream: response };
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : 'Failed to import project';
+			toast.error(errorMessage);
+			throw new Error(errorMessage);
 		}
 	}
 

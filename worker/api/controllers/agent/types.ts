@@ -11,7 +11,7 @@ export interface CodeGenArgs {
     frameworks?: string[];
     selectedTemplate?: string;
     behaviorType?: BehaviorType;
-    projectType?: ProjectType;
+    projectType?: ProjectType | 'auto';
     images?: ImageAttachment[];
 
     /** Chat mode: 'plan' (analyze only) or 'build' (implement). Defaults to 'plan'. */
@@ -19,6 +19,10 @@ export interface CodeGenArgs {
 
     /** Optional ephemeral credentials (BYOK / gateway override) for sdk */
     credentials?: CredentialsPayload;
+
+    /** Import flow: seed the session with files from an external (e.g. Lovable) project. */
+    externalFiles?: Array<{ filePath: string; fileContents: string }>;
+    importSource?: 'zip' | 'github' | 'template';
 }
 
 /**

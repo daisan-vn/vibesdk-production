@@ -160,6 +160,23 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         
         this.logger.info('Committed customized template files to git');
 
+        // Import flow: overlay the external project files on top of the base template.
+        // Imported files take priority in FileManager, so the session starts from the
+        // imported project (the template only provides sandbox scaffolding/config).
+        if (initArgs.externalFiles?.length) {
+            const importedFiles = initArgs.externalFiles.map((f) => ({
+                filePath: f.filePath,
+                fileContents: f.fileContents,
+                filePurpose: 'Imported external file',
+            }));
+            await this.fileManager.saveGeneratedFiles(
+                importedFiles,
+                `Import: ${importedFiles.length} files from ${initArgs.importSource ?? 'external'} project`,
+                true,
+            );
+            this.logger.info('Seeded imported external files', { count: importedFiles.length });
+        }
+
         this.initializeAsync().catch((error: unknown) => {
             this.broadcastError("Initialization failed", error);
         });
