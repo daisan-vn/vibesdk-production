@@ -766,6 +766,37 @@ export class CodingAgentController extends BaseController {
     }
 
     /**
+     * Update the project's .env (e.g. Supabase keys) from the in-session env editor
+     * and redeploy so the running preview picks up the new config. Owner-only.
+     */
+    static async updateEnv(
+        request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext,
+    ): Promise<ControllerResponse<ApiResponse<{ previewURL?: string }>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return CodingAgentController.createErrorResponse<{ previewURL?: string }>('Missing agent ID parameter', 400);
+            }
+            const body = (await request.json().catch(() => ({}))) as { env?: string };
+            const content = (body.env ?? '').trim();
+            if (!content) {
+                return CodingAgentController.createErrorResponse<{ previewURL?: string }>('No env content provided', 400);
+            }
+            const agentInstance = await getAgentStub(env, agentId);
+            if (!agentInstance || !(await agentInstance.isInitialized())) {
+                return CodingAgentController.createErrorResponse<{ previewURL?: string }>('Project not found or not initialized', 404);
+            }
+            const result = await agentInstance.applyEnvFile(content);
+            return CodingAgentController.createSuccessResponse({ previewURL: result?.previewURL });
+        } catch (error) {
+            return CodingAgentController.handleError(error, 'update env') as ControllerResponse<ApiResponse<{ previewURL?: string }>>;
+        }
+    }
+
+    /**
      * Real deployment diagnostics — answers WHY an app's URL shows
      * "App not found or not deployed yet" by probing the actual state:
      *  1) App record + generation status

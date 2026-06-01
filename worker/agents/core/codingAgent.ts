@@ -452,6 +452,20 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
         return this.behavior.deployToSandbox(files, redeploy, commitMessage, clearLogs);
     }
 
+    /**
+     * Write/replace the project's .env (e.g. Supabase keys) and force-redeploy so the
+     * dev server restarts and Vite re-reads import.meta.env.VITE_*. Used by the
+     * in-session env editor for imported apps that need runtime config to boot.
+     */
+    async applyEnvFile(content: string): Promise<PreviewType | null> {
+        await this.fileManager.saveGeneratedFiles(
+            [{ filePath: '.env', fileContents: content, filePurpose: 'Environment variables' }],
+            'Update environment variables',
+            true,
+        );
+        return this.behavior.deployToSandbox([], true, 'Apply env vars', true);
+    }
+
     deployToCloudflare(target?: DeploymentTarget): Promise<{ deploymentUrl?: string; workersUrl?: string } | null> {
         return this.behavior.deployToCloudflare(target);
     }

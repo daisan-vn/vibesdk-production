@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useParams } from 'react-router';
-import { LucideNetwork, ChevronRight, File, Download, Loader } from 'lucide-react';
+import { LucideNetwork, ChevronRight, File, Download, Loader, KeyRound } from 'lucide-react';
 import type { FileType } from '@/api-types';
 import { apiClient } from '@/lib/api-client';
+import { EnvEditorDialog } from './env-editor-dialog';
 import clsx from 'clsx';
 
 interface FileTreeItem {
@@ -133,6 +134,7 @@ export function FileExplorer({
 	// The chat route is /chat/:chatId, and chatId IS the agent id used by the API.
 	const { chatId: agentId } = useParams();
 	const [isDownloading, setIsDownloading] = useState(false);
+	const [envOpen, setEnvOpen] = useState(false);
 
 	const handleDownload = async () => {
 		if (!agentId || isDownloading) {
@@ -165,20 +167,31 @@ export function FileExplorer({
 				))}
 			</div>
 			{agentId && files.length > 0 && (
-				<button
-					onClick={handleDownload}
-					disabled={isDownloading}
-					className="flex items-center justify-center gap-2 m-2 py-2 px-3 rounded-md text-sm font-medium text-text-primary/80 bg-accent/50 hover:bg-accent hover:text-text-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-					title="Tải toàn bộ source code dự án (.zip)"
-				>
-					{isDownloading ? (
-						<Loader className="size-4 animate-spin" />
-					) : (
-						<Download className="size-4" />
-					)}
-					{isDownloading ? 'Đang nén…' : 'Download codebase'}
-				</button>
+				<div className="flex flex-col gap-1.5 p-2">
+					<button
+						onClick={() => setEnvOpen(true)}
+						className="flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium text-text-primary/80 bg-accent/30 hover:bg-accent hover:text-text-primary transition-colors"
+						title="Đặt biến môi trường (Supabase…) rồi redeploy"
+					>
+						<KeyRound className="size-4" />
+						Set env vars
+					</button>
+					<button
+						onClick={handleDownload}
+						disabled={isDownloading}
+						className="flex items-center justify-center gap-2 py-2 px-3 rounded-md text-sm font-medium text-text-primary/80 bg-accent/50 hover:bg-accent hover:text-text-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+						title="Tải toàn bộ source code dự án (.zip)"
+					>
+						{isDownloading ? (
+							<Loader className="size-4 animate-spin" />
+						) : (
+							<Download className="size-4" />
+						)}
+						{isDownloading ? 'Đang nén…' : 'Download codebase'}
+					</button>
+				</div>
 			)}
+			{agentId && <EnvEditorDialog open={envOpen} onClose={() => setEnvOpen(false)} agentId={agentId} />}
 		</div>
 	);
 }

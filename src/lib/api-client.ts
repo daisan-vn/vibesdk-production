@@ -804,6 +804,40 @@ class ApiClient {
 	}
 
 	/**
+	 * Update the project's .env (e.g. Supabase keys) and redeploy the preview.
+	 */
+	async updateEnv(agentId: string, env: string): Promise<boolean> {
+		try {
+			if (this.isCSRFTokenExpired()) {
+				await this.fetchCsrfToken();
+			}
+			const headers = await this.getAuthHeaders();
+			headers['content-type'] = 'application/json';
+			const response = await fetch(`${this.baseUrl}/api/agent/${agentId}/env`, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify({ env }),
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				let message = `Failed to apply env (${response.status})`;
+				try {
+					const parsed = await response.clone().json();
+					message = parsed?.error?.message ?? message;
+				} catch {
+					// keep default message
+				}
+				throw new Error(message);
+			}
+			return true;
+		} catch (error) {
+			const message = error instanceof Error ? error.message : 'Failed to apply env';
+			toast.error(message);
+			throw new Error(message);
+		}
+	}
+
+	/**
 	 * Update user profile
 	 */
 	async updateProfile(data: {
