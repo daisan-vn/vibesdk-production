@@ -671,10 +671,18 @@ class ApiClient {
 	 */
 	async importProjectZip(file: File): Promise<AgentStreamingResponse> {
 		try {
+			// State-changing request: ensure a valid CSRF token, then reuse the standard
+			// auth headers (X-CSRF-Token, session) that the rest of the client sends.
+			if (this.isCSRFTokenExpired()) {
+				await this.fetchCsrfToken();
+			}
+			const headers = await this.getAuthHeaders();
+			headers['content-type'] = 'application/zip';
+			headers['x-filename'] = file.name;
 			// Send the zip as the raw request body (the worker reads request.arrayBuffer()).
-			const response = await fetch('/api/imports/zip', {
+			const response = await fetch(`${this.baseUrl}/api/imports/zip`, {
 				method: 'POST',
-				headers: { 'content-type': 'application/zip', 'x-filename': file.name },
+				headers,
 				body: file,
 				credentials: 'include',
 			});
