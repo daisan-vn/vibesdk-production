@@ -669,7 +669,7 @@ class ApiClient {
 	 * files. Returns the same streaming response shape as createAgentSession so callers
 	 * can reuse the create-session stream handler (agentId, websocketUrl, etc.).
 	 */
-	async importProjectZip(file: File): Promise<AgentStreamingResponse> {
+	async importProjectZip(file: File, envVars?: string): Promise<AgentStreamingResponse> {
 		try {
 			// State-changing request: ensure a valid CSRF token, then reuse the standard
 			// auth headers (X-CSRF-Token, session) that the rest of the client sends.
@@ -679,6 +679,10 @@ class ApiClient {
 			const headers = await this.getAuthHeaders();
 			headers['content-type'] = 'application/zip';
 			headers['x-filename'] = file.name;
+			// Body is the raw zip, so optional env (e.g. Supabase) rides along base64-encoded.
+			if (envVars && envVars.trim()) {
+				headers['x-import-env'] = btoa(envVars);
+			}
 			// Send the zip as the raw request body (the worker reads request.arrayBuffer()).
 			const response = await fetch(`${this.baseUrl}/api/imports/zip`, {
 				method: 'POST',
@@ -708,7 +712,7 @@ class ApiClient {
 	 * Import a public GitHub repo by URL and start a build session seeded with its
 	 * files. Returns the same streaming response shape as importProjectZip.
 	 */
-	async importProjectFromGithub(url: string, branch?: string): Promise<AgentStreamingResponse> {
+	async importProjectFromGithub(url: string, branch?: string, envVars?: string): Promise<AgentStreamingResponse> {
 		try {
 			if (this.isCSRFTokenExpired()) {
 				await this.fetchCsrfToken();
@@ -718,7 +722,7 @@ class ApiClient {
 			const response = await fetch(`${this.baseUrl}/api/imports/github`, {
 				method: 'POST',
 				headers,
-				body: JSON.stringify({ url, branch }),
+				body: JSON.stringify({ url, branch, envVars }),
 				credentials: 'include',
 			});
 			if (!response.ok) {

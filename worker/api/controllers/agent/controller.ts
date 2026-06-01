@@ -132,7 +132,19 @@ export class CodingAgentController extends BaseController {
                 );
             }
 
-            return CodingAgentController.seedImportAndStart(extracted, request, env, ctx, context, 'zip');
+            // Optional env vars (e.g. Supabase) sent base64-encoded in a header,
+            // since the body is the raw zip.
+            let envContent: string | undefined;
+            const envHeader = request.headers.get('x-import-env');
+            if (envHeader) {
+                try {
+                    envContent = atob(envHeader);
+                } catch {
+                    // ignore malformed env header
+                }
+            }
+
+            return CodingAgentController.seedImportAndStart(extracted, request, env, ctx, context, 'zip', envContent);
         } catch (error) {
             this.logger.error('Import from zip failed', error);
             return CodingAgentController.createErrorResponse(
@@ -148,7 +160,7 @@ export class CodingAgentController extends BaseController {
      */
     static async importFromGithub(request: Request, env: Env, ctx: ExecutionContext, context: RouteContext): Promise<Response> {
         try {
-            const body = (await request.json().catch(() => ({}))) as { url?: string; branch?: string };
+            const body = (await request.json().catch(() => ({}))) as { url?: string; branch?: string; envVars?: string };
             const parsed = parseGithubUrl(body.url ?? '');
             if (!parsed) {
                 return CodingAgentController.createErrorResponse('Invalid GitHub URL. Use https://github.com/owner/repo', 400);
@@ -184,7 +196,7 @@ export class CodingAgentController extends BaseController {
                 );
             }
 
-            return CodingAgentController.seedImportAndStart(extracted, request, env, ctx, context, 'github');
+            return CodingAgentController.seedImportAndStart(extracted, request, env, ctx, context, 'github', body.envVars);
         } catch (error) {
             this.logger.error('Import from GitHub failed', error);
             return CodingAgentController.createErrorResponse(
@@ -205,6 +217,7 @@ export class CodingAgentController extends BaseController {
         ctx: ExecutionContext,
         context: RouteContext,
         importSource: 'zip' | 'github',
+        envContent?: string,
     ): Promise<Response> {
         const normalized = normalizeImportedFiles(extracted);
         if (!normalized.some((f) => f.filePath === 'package.json')) {
@@ -217,6 +230,18 @@ export class CodingAgentController extends BaseController {
         const externalFiles = normalized
             .map(patchImportedFile)
             .map((f) => ({ filePath: f.filePath, fileContents: f.fileContents }));
+
+        // Seed a .env from user-provided vars (e.g. Supabase) so a Vite app that reads
+        // import.meta.env.VITE_* boots instead of crashing on missing config.
+        if (envContent && envContent.trim()) {
+            const existing = externalFiles.find((f) => f.filePath === '.env');
+            if (existing) {
+                existing.fileContents = `${existing.fileContents.replace(/\s*$/, '')}\n${envContent.trim()}\n`;
+            } else {
+                externalFiles.unshift({ filePath: '.env', fileContents: `${envContent.trim()}\n` });
+            }
+        }
+
         const projectName = readImportedName(externalFiles) ?? 'imported-project';
 
         const codeGenBody: CodeGenArgs = {
