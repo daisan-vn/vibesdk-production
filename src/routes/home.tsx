@@ -63,10 +63,12 @@ export default function Home() {
 				toast.info(t('Uploading and analyzing project…', 'Đang tải lên & phân tích project…'));
 				const response = await apiClient.importProjectZip(file);
 				let agentId = '';
+				// Drain the whole create stream. The session and its App ownership
+				// record are only fully written by the time the stream ends, so
+				// navigating earlier would 403 ("You can only access your own resources").
 				for await (const obj of ndjsonStream(response.stream)) {
 					if (obj.agentId) {
 						agentId = obj.agentId;
-						break;
 					}
 				}
 				if (agentId) {
