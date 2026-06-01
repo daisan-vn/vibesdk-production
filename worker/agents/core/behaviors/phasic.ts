@@ -6,6 +6,7 @@ import {
 } from '../../schemas';
 import { StaticAnalysisResponse } from '../../../services/sandbox/sandboxTypes';
 import { CurrentDevState, MAX_PHASES, PhasicState } from '../state';
+import { createBuildJob, transition as buildTransition } from '../buildJob';
 import { AllIssues, AgentInitArgs, PhaseExecutionResult, UserContext } from '../types';
 import { WebSocketMessageResponses } from '../../constants';
 import { UserConversationProcessor } from '../../operations/UserConversationProcessor';
@@ -175,6 +176,19 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
                 true,
             );
             this.logger.info('Seeded imported external files', { count: importedFiles.length });
+
+            // An imported project ships a complete, runnable app — the seeded files ARE
+            // the implementation. Without this, the build sits at 0 completed phases
+            // (deployable=false), so the preview is never maintained and "Deploy to
+            // Cloudflare" stays disabled. Mark the job as one completed, deployable phase
+            // so an import behaves like a generated app: preview kept + Deploy enabled.
+            const prevJob = this.state.buildJob ?? createBuildJob(Date.now());
+            const deployableJob = buildTransition(prevJob, 'generating_code', Date.now(), {
+                note: 'imported project seeded (deployable)',
+                patch: { completedPhases: 1, deployable: true, requiredPhasesTotal: 1 },
+            });
+            this.setState({ ...this.state, buildJob: deployableJob });
+            this.broadcast(WebSocketMessageResponses.BUILD_STATE, { buildJob: deployableJob });
         }
 
         this.initializeAsync().catch((error: unknown) => {
