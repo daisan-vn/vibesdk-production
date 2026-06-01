@@ -586,15 +586,24 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
 
         // Pick the dev command from package.json (imported projects may use a different
         // script name). bun can run any package.json script regardless of install manager.
-        let initCommand = 'bun run dev';
+        // The sandbox proxy expects the dev server on $PORT (8001); a bare `vite` binds
+        // localhost:5173 and the preview never connects. Forward host/port flags to the
+        // script so vite binds correctly even when the imported script omits them. vite
+        // honors the last --port, so this is a no-op when the script already sets it.
+        let initCommand = 'bun run dev -- --host 0.0.0.0 --port ${PORT:-8001}';
         const pkgFile = files.find((f) => f.filePath === 'package.json');
         if (pkgFile) {
             try {
                 const parsed = JSON.parse(pkgFile.fileContents) as { scripts?: Record<string, string> };
                 const scripts = parsed.scripts ?? {};
-                const devScript = scripts.dev ? 'dev' : scripts.start ? 'start' : null;
-                if (devScript) {
-                    initCommand = `bun run ${devScript}`;
+                const devKey = scripts.dev ? 'dev' : scripts.start ? 'start' : null;
+                if (devKey) {
+                    // If the script already binds a port (template/generated apps), run it
+                    // as-is; otherwise force host/port so an imported bare `vite` still binds
+                    // the sandbox proxy port. Args after `--` are forwarded to the script.
+                    initCommand = scripts[devKey].includes('--port')
+                        ? `bun run ${devKey}`
+                        : `bun run ${devKey} -- --host 0.0.0.0 --port \${PORT:-8001}`;
                 }
             } catch {
                 // Malformed package.json: keep the default command.
