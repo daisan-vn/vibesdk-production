@@ -41,10 +41,56 @@ export function normalizeImportedFiles(files: TemplateFile[]): TemplateFile[] {
 }
 
 /**
- * Guard Lovable's `lovable-tagger` Vite plugin so a clean sandbox build does not
- * fail when the plugin is missing or incompatible. The plugin is dev-only tooling.
+ * The sandbox runs the dev/preview server behind a proxy that expects it to bind
+ * 0.0.0.0 on the port injected via $PORT (matching the VibeSDK template scripts).
+ * A bare `vite` binds localhost:5173, so the preview proxy finds nothing listening.
+ * This appends the host/port flags to any vite-based script that lacks them.
+ */
+const SANDBOX_VITE_FLAGS = '--host 0.0.0.0 --port ${PORT:-8001}';
+
+function patchViteScript(script: string): string {
+    if (!/\bvite\b/.test(script) || script.includes('--port')) {
+        return script;
+    }
+    return `${script.trim()} ${SANDBOX_VITE_FLAGS}`;
+}
+
+function patchPackageJson(file: TemplateFile): TemplateFile {
+    let parsed: { scripts?: Record<string, string> };
+    try {
+        parsed = JSON.parse(file.fileContents) as { scripts?: Record<string, string> };
+    } catch {
+        return file;
+    }
+    if (!parsed.scripts) {
+        return file;
+    }
+    let changed = false;
+    for (const key of ['dev', 'start', 'preview']) {
+        const script = parsed.scripts[key];
+        if (typeof script === 'string') {
+            const patched = patchViteScript(script);
+            if (patched !== script) {
+                parsed.scripts[key] = patched;
+                changed = true;
+            }
+        }
+    }
+    if (!changed) {
+        return file;
+    }
+    return { ...file, fileContents: `${JSON.stringify(parsed, null, 2)}\n` };
+}
+
+/**
+ * Neutralize import-time incompatibilities so a clean sandbox install/run succeeds:
+ * - Guard Lovable's dev-only `lovable-tagger` Vite plugin (missing in the sandbox).
+ * - Force vite dev/preview scripts to bind the sandbox proxy host/port.
  */
 export function patchImportedFile(file: TemplateFile): TemplateFile {
+    if (file.filePath === 'package.json') {
+        return patchPackageJson(file);
+    }
     if (file.filePath !== 'vite.config.ts' && file.filePath !== 'vite.config.js') {
         return file;
     }
