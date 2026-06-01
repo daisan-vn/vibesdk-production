@@ -743,6 +743,28 @@ class ApiClient {
 	}
 
 	/**
+	 * List the project's client-side routes for the preview route navigator.
+	 * Best-effort: returns ['/'] on any failure (routes are a navigation aid).
+	 */
+	async getProjectRoutes(agentId: string): Promise<string[]> {
+		try {
+			const headers = await this.getAuthHeaders();
+			const response = await fetch(`${this.baseUrl}/api/agent/${agentId}/routes`, {
+				method: 'GET',
+				headers,
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				return ['/'];
+			}
+			const data: ApiResponse<{ routes: string[] }> = await response.json();
+			return data.data?.routes?.length ? data.data.routes : ['/'];
+		} catch {
+			return ['/'];
+		}
+	}
+
+	/**
 	 * Update user profile
 	 */
 	async updateProfile(data: {

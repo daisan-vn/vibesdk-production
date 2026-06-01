@@ -35,6 +35,41 @@ import type { TemplateFile } from 'worker/services/sandbox/sandboxTypes';
 import { normalizeImportedFiles, patchImportedFile, readImportedName } from 'worker/services/imports/lovableAdapter';
 import { zipSync } from 'fflate';
 
+/**
+ * Heuristically extract client-side route paths from a project's source files so
+ * the preview can offer a route navigator (like Lovable). Matches both JSX
+ * (`<Route path="/x">`) and object-config (`path: "/x"`) router definitions.
+ */
+function extractRoutePaths(files: { filePath: string; fileContents: string }[]): string[] {
+    const paths = new Set<string>(['/']);
+    const sourceFile = /\.(tsx?|jsx?)$/;
+    const pathDecl = /\bpath\s*[:=]\s*\{?\s*["'`]([^"'`]*)["'`]/g;
+    for (const file of files) {
+        if (!file.filePath || !sourceFile.test(file.filePath)) {
+            continue;
+        }
+        const content = file.fileContents ?? '';
+        if (content.startsWith('base64:') || !/Route|createBrowserRouter|useRoutes|path\s*[:=]/.test(content)) {
+            continue;
+        }
+        let match: RegExpExecArray | null;
+        while ((match = pathDecl.exec(content)) !== null) {
+            const raw = match[1].trim();
+            if (!raw || raw.length > 120) {
+                continue;
+            }
+            if (raw === '*') {
+                continue; // catch-all, not a navigable route
+            }
+            // Only keep absolute routes — relative nested segments can't be resolved reliably.
+            if (raw.startsWith('/')) {
+                paths.add(raw);
+            }
+        }
+    }
+    return Array.from(paths).sort((a, b) => (a === '/' ? -1 : b === '/' ? 1 : a.localeCompare(b)));
+}
+
 const defaultCodeGenArgs: Partial<CodeGenArgs> = {
     language: 'typescript',
     frameworks: ['react', 'vite'],
@@ -594,6 +629,33 @@ export class CodingAgentController extends BaseController {
         } catch (error) {
             this.logger.error('Failed to download codebase', error);
             return new Response('Failed to build codebase archive', { status: 500 });
+        }
+    }
+
+    /**
+     * List the project's client-side routes so the preview can offer a route
+     * navigator (address bar + dropdown, like Lovable). Owner-only via the route.
+     */
+    static async getProjectRoutes(
+        _request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext,
+    ): Promise<ControllerResponse<ApiResponse<{ routes: string[] }>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return CodingAgentController.createErrorResponse<{ routes: string[] }>('Missing agent ID parameter', 400);
+            }
+            const agentInstance = await getAgentStub(env, agentId);
+            if (!agentInstance || !(await agentInstance.isInitialized())) {
+                return CodingAgentController.createErrorResponse<{ routes: string[] }>('Project not found or not initialized', 404);
+            }
+            const summary = await agentInstance.getSummary();
+            const routes = extractRoutePaths(summary?.generatedCode ?? []);
+            return CodingAgentController.createSuccessResponse({ routes });
+        } catch (error) {
+            return CodingAgentController.handleError(error, 'get project routes') as ControllerResponse<ApiResponse<{ routes: string[] }>>;
         }
     }
 
