@@ -18,6 +18,9 @@ export function setupCodegenRoutes(app: Hono<AppEnv>): void {
     // Import an existing project (.zip upload) and start a session seeded with its files
     app.post('/api/imports/zip', setAuthLevel(AuthConfig.authenticated), adaptController(CodingAgentController, CodingAgentController.importFromZip));
 
+    // Import a public GitHub repo by URL (fetches the archive, seeds a session)
+    app.post('/api/imports/github', setAuthLevel(AuthConfig.authenticated), adaptController(CodingAgentController, CodingAgentController.importFromGithub));
+
     // ========================================
     // APP EDITING ROUTES (/chat/:id frontend)
     // ========================================

@@ -36,6 +36,20 @@ import { normalizeImportedFiles, patchImportedFile, readImportedName } from 'wor
 import { zipSync } from 'fflate';
 
 /**
+ * Parse a GitHub repo URL into owner/repo/(branch). Accepts the common forms:
+ * https://github.com/owner/repo[.git], .../owner/repo/tree/branch, git@github.com:owner/repo.git
+ */
+function parseGithubUrl(url: string): { owner: string; repo: string; branch?: string } | null {
+    const match = url
+        .trim()
+        .match(/github\.com[/:]([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:\/tree\/([^/\s?#]+))?(?:[/?#].*)?$/i);
+    if (!match) {
+        return null;
+    }
+    return { owner: match[1], repo: match[2], branch: match[3] };
+}
+
+/**
  * Heuristically extract client-side route paths from a project's source files so
  * the preview can offer a route navigator (like Lovable). Matches both JSX
  * (`<Route path="/x">`) and object-config (`path: "/x"`) router definitions.
@@ -118,37 +132,7 @@ export class CodingAgentController extends BaseController {
                 );
             }
 
-            const normalized = normalizeImportedFiles(extracted);
-            if (!normalized.some((f) => f.filePath === 'package.json')) {
-                return CodingAgentController.createErrorResponse(
-                    'No package.json found at the project root. Only a single Vite/React project (not a monorepo) can be imported right now.',
-                    400,
-                );
-            }
-
-            const externalFiles = normalized
-                .map(patchImportedFile)
-                .map((f) => ({ filePath: f.filePath, fileContents: f.fileContents }));
-            const projectName = readImportedName(externalFiles) ?? 'imported-project';
-
-            const codeGenBody: CodeGenArgs = {
-                query: `I imported an existing project named "${projectName}". Install its dependencies, run it, and show me a live preview. Do NOT rebuild it from scratch — keep the imported code and wait for my instructions on what to change.`,
-                externalFiles,
-                importSource: 'zip',
-                mode: 'plan',
-            };
-
-            const jsonRequest = new Request(request.url, {
-                method: 'POST',
-                headers: {
-                    'content-type': 'application/json',
-                    cookie: request.headers.get('cookie') ?? '',
-                },
-                body: JSON.stringify(codeGenBody),
-            });
-
-            this.logger.info('Importing project from zip', { fileCount: externalFiles.length, projectName });
-            return CodingAgentController.startCodeGeneration(jsonRequest, env, ctx, context);
+            return CodingAgentController.seedImportAndStart(extracted, request, env, ctx, context, 'zip');
         } catch (error) {
             this.logger.error('Import from zip failed', error);
             return CodingAgentController.createErrorResponse(
@@ -156,6 +140,103 @@ export class CodingAgentController extends BaseController {
                 500,
             );
         }
+    }
+
+    /**
+     * Import a public GitHub repo by URL. Fetches the branch archive zip from
+     * codeload and reuses the same seed-and-start pipeline as the zip import.
+     */
+    static async importFromGithub(request: Request, env: Env, ctx: ExecutionContext, context: RouteContext): Promise<Response> {
+        try {
+            const body = (await request.json().catch(() => ({}))) as { url?: string; branch?: string };
+            const parsed = parseGithubUrl(body.url ?? '');
+            if (!parsed) {
+                return CodingAgentController.createErrorResponse('Invalid GitHub URL. Use https://github.com/owner/repo', 400);
+            }
+
+            // Try the requested branch first, then the common defaults.
+            const candidates = [body.branch, parsed.branch, 'main', 'master'].filter(
+                (b): b is string => typeof b === 'string' && b.length > 0,
+            );
+            let zipBuffer: ArrayBuffer | null = null;
+            for (const branch of [...new Set(candidates)]) {
+                const url = `https://codeload.github.com/${parsed.owner}/${parsed.repo}/zip/refs/heads/${branch}`;
+                const response = await fetch(url, { headers: { 'user-agent': 'daisan-importer' } });
+                if (response.ok) {
+                    zipBuffer = await response.arrayBuffer();
+                    break;
+                }
+            }
+            if (!zipBuffer) {
+                return CodingAgentController.createErrorResponse(
+                    'Could not fetch the repository. Make sure it is public and the branch exists (only public repos are supported for now).',
+                    400,
+                );
+            }
+
+            let extracted: TemplateFile[];
+            try {
+                extracted = ZipExtractor.extractFiles(zipBuffer);
+            } catch (error) {
+                return CodingAgentController.createErrorResponse(
+                    `Could not read the repository archive: ${error instanceof Error ? error.message : 'unknown error'}`,
+                    400,
+                );
+            }
+
+            return CodingAgentController.seedImportAndStart(extracted, request, env, ctx, context, 'github');
+        } catch (error) {
+            this.logger.error('Import from GitHub failed', error);
+            return CodingAgentController.createErrorResponse(
+                `GitHub import failed: ${error instanceof Error ? error.message : 'unknown error'}`,
+                500,
+            );
+        }
+    }
+
+    /**
+     * Shared import core: normalize + patch the extracted files, then delegate to
+     * startCodeGeneration with the files seeded into a new plan-mode session.
+     */
+    private static async seedImportAndStart(
+        extracted: TemplateFile[],
+        request: Request,
+        env: Env,
+        ctx: ExecutionContext,
+        context: RouteContext,
+        importSource: 'zip' | 'github',
+    ): Promise<Response> {
+        const normalized = normalizeImportedFiles(extracted);
+        if (!normalized.some((f) => f.filePath === 'package.json')) {
+            return CodingAgentController.createErrorResponse(
+                'No package.json found at the project root. Only a single Vite/React project (not a monorepo) can be imported right now.',
+                400,
+            );
+        }
+
+        const externalFiles = normalized
+            .map(patchImportedFile)
+            .map((f) => ({ filePath: f.filePath, fileContents: f.fileContents }));
+        const projectName = readImportedName(externalFiles) ?? 'imported-project';
+
+        const codeGenBody: CodeGenArgs = {
+            query: `I imported an existing project named "${projectName}". Install its dependencies, run it, and show me a live preview. Do NOT rebuild it from scratch — keep the imported code and wait for my instructions on what to change.`,
+            externalFiles,
+            importSource,
+            mode: 'plan',
+        };
+
+        const jsonRequest = new Request(request.url, {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                cookie: request.headers.get('cookie') ?? '',
+            },
+            body: JSON.stringify(codeGenBody),
+        });
+
+        this.logger.info('Seeding import session', { fileCount: externalFiles.length, projectName, importSource });
+        return CodingAgentController.startCodeGeneration(jsonRequest, env, ctx, context);
     }
 
     /**

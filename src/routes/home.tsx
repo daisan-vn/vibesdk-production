@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { ArrowRight, Info } from 'react-feather';
-import { Loader2, Hammer, Upload } from 'lucide-react';
+import { Loader2, Hammer, Upload, Github } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
@@ -44,8 +44,27 @@ export default function Home() {
 	const importInputRef = useRef<HTMLInputElement>(null);
 	const [importing, setImporting] = useState(false);
 
-	// Import an existing project (.zip): upload, read the create stream for the new
-	// session id, then open it in the chat workspace (same flow as a normal session).
+	// Drain the whole create stream for the new session id, then open it in the chat
+	// workspace. The session + its App ownership record are only fully written by the
+	// time the stream ends, so navigating earlier would 403.
+	const consumeImportStream = useCallback(
+		async (stream: Response) => {
+			let agentId = '';
+			for await (const obj of ndjsonStream(stream)) {
+				if (obj.agentId) {
+					agentId = obj.agentId;
+				}
+			}
+			if (agentId) {
+				navigate(`/chat/${agentId}`);
+			} else {
+				toast.error(t('Import did not return a session id', 'Import không trả về session id'));
+			}
+		},
+		[navigate, t],
+	);
+
+	// Import an existing project from a .zip upload.
 	const handleImportFile = useCallback(
 		async (event: React.ChangeEvent<HTMLInputElement>) => {
 			const file = event.target.files?.[0];
@@ -62,28 +81,41 @@ export default function Home() {
 			try {
 				toast.info(t('Uploading and analyzing project…', 'Đang tải lên & phân tích project…'));
 				const response = await apiClient.importProjectZip(file);
-				let agentId = '';
-				// Drain the whole create stream. The session and its App ownership
-				// record are only fully written by the time the stream ends, so
-				// navigating earlier would 403 ("You can only access your own resources").
-				for await (const obj of ndjsonStream(response.stream)) {
-					if (obj.agentId) {
-						agentId = obj.agentId;
-					}
-				}
-				if (agentId) {
-					navigate(`/chat/${agentId}`);
-				} else {
-					toast.error(t('Import did not return a session id', 'Import không trả về session id'));
-				}
+				await consumeImportStream(response.stream);
 			} catch (error) {
 				toast.error(error instanceof Error ? error.message : 'Import failed');
 			} finally {
 				setImporting(false);
 			}
 		},
-		[navigate, requireAuth, t],
+		[consumeImportStream, requireAuth, t],
 	);
+
+	// Import a public GitHub repo by URL.
+	const handleImportGithub = useCallback(async () => {
+		if (!requireAuth({ requireFullAuth: true, actionContext: 'to import a project', intendedUrl: '/' })) {
+			return;
+		}
+		const url = window.prompt(
+			t(
+				'Paste a public GitHub repo URL (e.g. https://github.com/owner/repo)',
+				'Dán URL repo GitHub công khai (vd https://github.com/owner/repo)',
+			),
+		);
+		if (!url || !url.trim()) {
+			return;
+		}
+		setImporting(true);
+		try {
+			toast.info(t('Fetching repository…', 'Đang tải repository từ GitHub…'));
+			const response = await apiClient.importProjectFromGithub(url.trim());
+			await consumeImportStream(response.stream);
+		} catch (error) {
+			toast.error(error instanceof Error ? error.message : 'GitHub import failed');
+		} finally {
+			setImporting(false);
+		}
+	}, [consumeImportStream, requireAuth, t]);
 
 	const handleConnectCloudflare = useCallback(() => {
 		window.location.href = `/oauth/login?return_url=${encodeURIComponent(window.location.href)}`;
@@ -329,6 +361,19 @@ export default function Home() {
 											<Upload className="size-3.5" />
 										)}
 										{t('Import', 'Import')}
+									</button>
+									<button
+										type="button"
+										onClick={handleImportGithub}
+										disabled={importing}
+										title={t(
+											'Import a public GitHub repo by URL',
+											'Import repo GitHub công khai bằng URL',
+										)}
+										className="flex items-center gap-1.5 rounded-full border border-border-primary bg-bg-2/40 px-3 py-1 text-xs text-text-tertiary transition-colors hover:border-accent/40 hover:text-text-primary disabled:opacity-50"
+									>
+										<Github className="size-3.5" />
+										{t('GitHub', 'GitHub')}
 									</button>
 								</div>
 							}

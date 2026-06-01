@@ -705,6 +705,41 @@ class ApiClient {
 	}
 
 	/**
+	 * Import a public GitHub repo by URL and start a build session seeded with its
+	 * files. Returns the same streaming response shape as importProjectZip.
+	 */
+	async importProjectFromGithub(url: string, branch?: string): Promise<AgentStreamingResponse> {
+		try {
+			if (this.isCSRFTokenExpired()) {
+				await this.fetchCsrfToken();
+			}
+			const headers = await this.getAuthHeaders();
+			headers['content-type'] = 'application/json';
+			const response = await fetch(`${this.baseUrl}/api/imports/github`, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify({ url, branch }),
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				let message = `GitHub import failed with status ${response.status}`;
+				try {
+					const parsed = await response.clone().json();
+					message = parsed?.error?.message ?? message;
+				} catch {
+					// keep default message
+				}
+				throw new Error(message);
+			}
+			return { success: true, stream: response };
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : 'Failed to import from GitHub';
+			toast.error(errorMessage);
+			throw new Error(errorMessage);
+		}
+	}
+
+	/**
 	 * Download the full project source as a zip ("Download codebase", like Lovable).
 	 * Fetches the owner-only archive endpoint and triggers a browser download.
 	 */
