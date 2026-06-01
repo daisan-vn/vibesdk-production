@@ -1,9 +1,11 @@
-import { 
-    PhaseConceptGenerationSchemaType, 
+import {
+    PhaseConceptGenerationSchemaType,
     PhaseConceptType,
     FileOutputType,
     PhaseImplementationSchemaType,
+    type PhasicBlueprint,
 } from '../../schemas';
+import { readImportedName } from 'worker/services/imports/lovableAdapter';
 import { StaticAnalysisResponse } from '../../../services/sandbox/sandboxTypes';
 import { CurrentDevState, MAX_PHASES, PhasicState } from '../state';
 import { createBuildJob, transition as buildTransition } from '../buildJob';
@@ -85,26 +87,60 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         this.logger.info('Generating blueprint', { query, queryLength: query.length, imagesCount: initArgs.images?.length || 0 });
         this.logger.info(`Using language: ${language}, frameworks: ${frameworks ? frameworks.join(", ") : "none"}`);
         
-        // P2-P4: Daisan specialists run NON-BLOCKING (fire-and-forget) elsewhere
-        // (see codingAgent.initialize → runSpecialistsToPlan) so they never delay
-        // the blueprint / drop the WebSocket. They persist a reference plan instead.
-        const blueprint = await generateBlueprint({
-            env: this.env,
-            inferenceContext,
-            query,
-            language: language!,
-            frameworks: frameworks!,
-            templateDetails: templateInfo?.templateDetails,
-            templateMetaInfo: templateInfo?.selection,
-            images: initArgs.images,
-            projectType: this.projectType,
-            stream: {
-                chunk_size: 256,
-                onChunk: (chunk) => {
-                    initArgs.onBlueprintChunk(chunk);
+        // Imports ship complete, runnable code — the (slow) AI blueprint just analyzes
+        // code we won't regenerate, so skip it and go straight to seed + deploy. Use a
+        // minimal valid blueprint to satisfy downstream state/plan-mode rendering.
+        const isImport = Boolean(initArgs.externalFiles?.length);
+        let blueprint: PhasicBlueprint;
+        if (isImport) {
+            const importedName = readImportedName(initArgs.externalFiles ?? []) ?? 'imported-project';
+            this.logger.info('Import detected — skipping AI blueprint generation', {
+                fileCount: initArgs.externalFiles?.length ?? 0,
+                importedName,
+            });
+            blueprint = {
+                title: 'Existing Project Import',
+                projectName: importedName,
+                description: 'Imported existing project — install dependencies and show a live preview.',
+                colorPalette: [],
+                frameworks: frameworks ?? [],
+                detailedDescription:
+                    'Imported project files are used as-is. No AI generation is performed; the sandbox installs dependencies and runs the existing app.',
+                views: [],
+                userFlow: { uiLayout: '', uiDesign: '', userJourney: '' },
+                dataFlow: '',
+                architecture: { dataFlow: '' },
+                pitfalls: [],
+                implementationRoadmap: [],
+                initialPhase: {
+                    name: 'Imported project',
+                    description: 'Seeded imported files; no generation needed.',
+                    files: [],
+                    lastPhase: true,
+                },
+            };
+        } else {
+            // P2-P4: Daisan specialists run NON-BLOCKING (fire-and-forget) elsewhere
+            // (see codingAgent.initialize → runSpecialistsToPlan) so they never delay
+            // the blueprint / drop the WebSocket. They persist a reference plan instead.
+            blueprint = await generateBlueprint({
+                env: this.env,
+                inferenceContext,
+                query,
+                language: language!,
+                frameworks: frameworks!,
+                templateDetails: templateInfo?.templateDetails,
+                templateMetaInfo: templateInfo?.selection,
+                images: initArgs.images,
+                projectType: this.projectType,
+                stream: {
+                    chunk_size: 256,
+                    onChunk: (chunk) => {
+                        initArgs.onBlueprintChunk(chunk);
+                    }
                 }
-            }
-        })
+            });
+        }
                 
         const packageJson = templateInfo.templateDetails.allFiles['package.json'];
                 
