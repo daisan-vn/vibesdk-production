@@ -63,8 +63,6 @@ import type{
 	CapabilitiesData,
 	VaultConfigResponse,
 	VaultStatusResponse,
-	ProjectBackupCreateData,
-	ProjectBackupListData,
 } from '@/api-types';
 import {
 	RateLimitExceededError,
@@ -579,20 +577,6 @@ class ApiClient {
 		return this.request<GitCloneTokenData>(`/api/apps/${appId}/git/token`, {
 			method: 'POST',
 		});
-	}
-
-	async createProjectBackup(appId: string): Promise<ApiResponse<ProjectBackupCreateData>> {
-		return this.request<ProjectBackupCreateData>(`/api/apps/${appId}/backups`, {
-			method: 'POST',
-		});
-	}
-
-	async listProjectBackups(appId: string): Promise<ApiResponse<ProjectBackupListData>> {
-		return this.request<ProjectBackupListData>(`/api/apps/${appId}/backups`);
-	}
-
-	getProjectBackupDownloadUrl(appId: string, backupId: string): string {
-		return `${this.baseUrl}/api/apps/${appId}/backups/${backupId}/download`;
 	}
 
 	// /**
