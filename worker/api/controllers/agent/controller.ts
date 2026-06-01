@@ -33,6 +33,7 @@ import { UsageLimitExceededError } from 'shared/types/errors';
 import { ZipExtractor } from 'worker/services/sandbox/zipExtractor';
 import type { TemplateFile } from 'worker/services/sandbox/sandboxTypes';
 import { normalizeImportedFiles, patchImportedFile, readImportedName } from 'worker/services/imports/lovableAdapter';
+import { zipSync } from 'fflate';
 
 const defaultCodeGenArgs: Partial<CodeGenArgs> = {
     language: 'typescript',
@@ -517,6 +518,82 @@ export class CodingAgentController extends BaseController {
             this.logger.error('Error deploying preview', error);
             const appError = CodingAgentController.handleError(error, 'deploy preview') as ControllerResponse<ApiResponse<AgentPreviewResponse>>;
             return appError;
+        }
+    }
+
+    /**
+     * Download the full project source as a zip archive (like Lovable's
+     * "Download codebase"). Owner-only (enforced at the route). Builds the zip
+     * in-memory from the agent's generated files — text files are UTF-8 encoded,
+     * binary files (stored with a `base64:` prefix) are decoded back to bytes.
+     */
+    static async downloadCodebase(
+        _request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext,
+    ): Promise<Response> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return new Response('Missing agent ID parameter', { status: 400 });
+            }
+
+            const agentInstance = await getAgentStub(env, agentId);
+            if (!agentInstance || !(await agentInstance.isInitialized())) {
+                return new Response('Project not found or not initialized', { status: 404 });
+            }
+
+            const summary = await agentInstance.getSummary();
+            const files = summary?.generatedCode ?? [];
+            if (files.length === 0) {
+                return new Response('No files to download yet', { status: 404 });
+            }
+
+            const encoder = new TextEncoder();
+            const zipInput: Record<string, Uint8Array> = {};
+            for (const file of files) {
+                if (!file.filePath) {
+                    continue;
+                }
+                const contents = file.fileContents ?? '';
+                if (contents.startsWith('base64:')) {
+                    const binary = atob(contents.slice('base64:'.length));
+                    const bytes = new Uint8Array(binary.length);
+                    for (let i = 0; i < binary.length; i++) {
+                        bytes[i] = binary.charCodeAt(i);
+                    }
+                    zipInput[file.filePath] = bytes;
+                } else {
+                    zipInput[file.filePath] = encoder.encode(contents);
+                }
+            }
+
+            const archive = zipSync(zipInput, { level: 6 });
+
+            let name = 'daisan-project';
+            try {
+                const appResult = await new AppService(env).getAppDetails(agentId);
+                const rawName = appResult?.title || summary?.query || name;
+                const slug = rawName.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '').toLowerCase();
+                if (slug) {
+                    name = slug.slice(0, 60);
+                }
+            } catch {
+                // Keep the default name if app lookup fails.
+            }
+
+            return new Response(archive, {
+                status: 200,
+                headers: {
+                    'content-type': 'application/zip',
+                    'content-disposition': `attachment; filename="${name}.zip"`,
+                    'cache-control': 'no-store',
+                },
+            });
+        } catch (error) {
+            this.logger.error('Failed to download codebase', error);
+            return new Response('Failed to build codebase archive', { status: 500 });
         }
     }
 

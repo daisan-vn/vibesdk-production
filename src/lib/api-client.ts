@@ -705,6 +705,44 @@ class ApiClient {
 	}
 
 	/**
+	 * Download the full project source as a zip ("Download codebase", like Lovable).
+	 * Fetches the owner-only archive endpoint and triggers a browser download.
+	 */
+	async downloadCodebase(agentId: string): Promise<void> {
+		try {
+			const headers = await this.getAuthHeaders();
+			const response = await fetch(`${this.baseUrl}/api/agent/${agentId}/download`, {
+				method: 'GET',
+				headers,
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				throw new Error(
+					response.status === 404
+						? 'No files to download yet'
+						: `Download failed (${response.status})`,
+				);
+			}
+			const blob = await response.blob();
+			const disposition = response.headers.get('content-disposition') ?? '';
+			const match = disposition.match(/filename="?([^";]+)"?/);
+			const filename = match?.[1] ?? `daisan-${agentId}.zip`;
+			const url = URL.createObjectURL(blob);
+			const anchor = document.createElement('a');
+			anchor.href = url;
+			anchor.download = filename;
+			document.body.appendChild(anchor);
+			anchor.click();
+			anchor.remove();
+			URL.revokeObjectURL(url);
+		} catch (error) {
+			const errorMessage = error instanceof Error ? error.message : 'Failed to download codebase';
+			toast.error(errorMessage);
+			throw new Error(errorMessage);
+		}
+	}
+
+	/**
 	 * Update user profile
 	 */
 	async updateProfile(data: {

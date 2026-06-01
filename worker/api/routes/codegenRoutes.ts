@@ -34,6 +34,9 @@ export function setupCodegenRoutes(app: Hono<AppEnv>): void {
 
     app.get('/api/agent/:agentId/preview', setAuthLevel(AuthConfig.authenticated), adaptController(CodingAgentController, CodingAgentController.deployPreview));
 
+    // Download the full project source as a zip ("Download codebase") - OWNER ONLY
+    app.get('/api/agent/:agentId/download', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.downloadCodebase));
+
     // Real deployment diagnostics for an app - OWNER ONLY
     // Probes the dispatch namespace + live URL to explain "App not found".
     app.get('/api/agent/:agentId/deployment-diagnostics', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.getDeploymentDiagnostics));

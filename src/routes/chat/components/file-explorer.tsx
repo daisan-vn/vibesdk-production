@@ -1,6 +1,8 @@
 import { useState } from 'react';
-import { LucideNetwork, ChevronRight, File } from 'lucide-react';
+import { useParams } from 'react-router';
+import { LucideNetwork, ChevronRight, File, Download, Loader } from 'lucide-react';
 import type { FileType } from '@/api-types';
+import { apiClient } from '@/lib/api-client';
 import clsx from 'clsx';
 
 interface FileTreeItem {
@@ -128,14 +130,31 @@ export function FileExplorer({
 	onFileClick: (file: FileType) => void;
 }) {
 	const fileTree = buildFileTree(files);
+	// The chat route is /chat/:chatId, and chatId IS the agent id used by the API.
+	const { chatId: agentId } = useParams();
+	const [isDownloading, setIsDownloading] = useState(false);
+
+	const handleDownload = async () => {
+		if (!agentId || isDownloading) {
+			return;
+		}
+		setIsDownloading(true);
+		try {
+			await apiClient.downloadCodebase(agentId);
+		} catch {
+			// apiClient already surfaces a toast on failure.
+		} finally {
+			setIsDownloading(false);
+		}
+	};
 
 	return (
-		<div className="w-full max-w-[200px] bg-bg-3 border-r border-text/10 h-full overflow-y-auto">
+		<div className="w-full max-w-[200px] bg-bg-3 border-r border-text/10 h-full flex flex-col">
 			<div className="p-2 px-3 text-sm flex items-center gap-1 text-text-primary/50 font-medium">
 				<LucideNetwork className="size-4" />
 				Files
 			</div>
-			<div className="flex flex-col">
+			<div className="flex flex-col flex-1 overflow-y-auto">
 				{fileTree.map((item) => (
 					<FileTreeItem
 						key={item.filePath}
@@ -145,6 +164,21 @@ export function FileExplorer({
 					/>
 				))}
 			</div>
+			{agentId && files.length > 0 && (
+				<button
+					onClick={handleDownload}
+					disabled={isDownloading}
+					className="flex items-center justify-center gap-2 m-2 py-2 px-3 rounded-md text-sm font-medium text-text-primary/80 bg-accent/50 hover:bg-accent hover:text-text-primary transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+					title="Tải toàn bộ source code dự án (.zip)"
+				>
+					{isDownloading ? (
+						<Loader className="size-4 animate-spin" />
+					) : (
+						<Download className="size-4" />
+					)}
+					{isDownloading ? 'Đang nén…' : 'Download codebase'}
+				</button>
+			)}
 		</div>
 	);
 }
