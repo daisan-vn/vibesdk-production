@@ -82,18 +82,8 @@ function patchPackageJson(file: TemplateFile): TemplateFile {
     return { ...file, fileContents: `${JSON.stringify(parsed, null, 2)}\n` };
 }
 
-/**
- * Neutralize import-time incompatibilities so a clean sandbox install/run succeeds:
- * - Guard Lovable's dev-only `lovable-tagger` Vite plugin (missing in the sandbox).
- * - Force vite dev/preview scripts to bind the sandbox proxy host/port.
- */
-export function patchImportedFile(file: TemplateFile): TemplateFile {
-    if (file.filePath === 'package.json') {
-        return patchPackageJson(file);
-    }
-    if (file.filePath !== 'vite.config.ts' && file.filePath !== 'vite.config.js') {
-        return file;
-    }
+/** Strip Lovable's dev-only `componentTagger`/`lovable-tagger` plugin (absent in the sandbox). */
+function patchViteConfig(file: TemplateFile): TemplateFile {
     if (!file.fileContents.includes('lovable-tagger') && !file.fileContents.includes('componentTagger')) {
         return file;
     }
@@ -101,6 +91,60 @@ export function patchImportedFile(file: TemplateFile): TemplateFile {
         .replace(/import\s*\{?\s*componentTagger\s*\}?\s*from\s*["']lovable-tagger["'];?/g, '')
         .replace(/mode\s*===\s*["']development["']\s*&&\s*componentTagger\(\)/g, 'false');
     return { ...file, fileContents: content };
+}
+
+/**
+ * A tiny runtime error overlay injected into the imported app. If the app throws at
+ * runtime (e.g. missing Supabase env), React unmounts and the preview would be a blank
+ * white iframe; this catches window errors + unhandled rejections and renders the real
+ * error on screen instead, so the user never faces a silent blank preview. XSS-safe
+ * (textContent), idempotent, and self-contained so it survives Vite's html processing.
+ */
+const ERROR_OVERLAY_SNIPPET =
+    `<script>(function(){if(window.__daisanErr)return;window.__daisanErr=1;` +
+    `function show(title,detail){if(document.getElementById('__daisan_err'))return;` +
+    `var w=document.createElement('div');w.id='__daisan_err';w.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#1b1b1b;color:#eee;font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;padding:32px;overflow:auto';` +
+    `var h=document.createElement('div');h.style.cssText='color:#ff5a1f;font-weight:700;font-size:15px;margin-bottom:6px';h.textContent='App runtime error';` +
+    `var s=document.createElement('div');s.style.cssText='color:#999;margin-bottom:16px';s.textContent='The preview crashed instead of showing a blank screen (overlay by Daisan).';` +
+    `var t=document.createElement('div');t.style.cssText='font-weight:600;margin-bottom:8px;color:#fff';t.textContent=title;` +
+    `var p=document.createElement('pre');p.style.cssText='white-space:pre-wrap;word-break:break-word;background:#000;border:1px solid #333;border-radius:8px;padding:14px;color:#ff8a65;margin:0';p.textContent=detail;` +
+    `[h,s,t,p].forEach(function(n){w.appendChild(n)});(document.body||document.documentElement).appendChild(w)}` +
+    `window.addEventListener('error',function(e){show(e.message||'Error',(e.error&&e.error.stack)||e.message||String(e))});` +
+    `window.addEventListener('unhandledrejection',function(e){var r=e.reason;show('Unhandled promise rejection',(r&&(r.stack||r.message))||String(r))})})();</script>`;
+
+/** Inject the runtime error overlay so a crashing imported app never shows a blank iframe. */
+function patchIndexHtml(file: TemplateFile): TemplateFile {
+    if (file.fileContents.includes('__daisan_err')) {
+        return file; // already injected
+    }
+    let content: string;
+    if (file.fileContents.includes('</head>')) {
+        content = file.fileContents.replace('</head>', `${ERROR_OVERLAY_SNIPPET}\n</head>`);
+    } else if (file.fileContents.includes('<body>')) {
+        content = file.fileContents.replace('<body>', `<body>\n${ERROR_OVERLAY_SNIPPET}`);
+    } else {
+        content = `${ERROR_OVERLAY_SNIPPET}\n${file.fileContents}`;
+    }
+    return { ...file, fileContents: content };
+}
+
+/**
+ * Neutralize import-time incompatibilities so a clean sandbox install/run succeeds:
+ * - Force vite dev/preview scripts to bind the sandbox proxy host/port (package.json).
+ * - Strip Lovable's dev-only `lovable-tagger` plugin (vite config).
+ * - Inject a runtime error overlay so a crash shows the error instead of a blank iframe.
+ */
+export function patchImportedFile(file: TemplateFile): TemplateFile {
+    if (file.filePath === 'package.json') {
+        return patchPackageJson(file);
+    }
+    if (file.filePath === 'index.html') {
+        return patchIndexHtml(file);
+    }
+    if (file.filePath === 'vite.config.ts' || file.filePath === 'vite.config.js') {
+        return patchViteConfig(file);
+    }
+    return file;
 }
 
 /** Read the project name from package.json, if present. */

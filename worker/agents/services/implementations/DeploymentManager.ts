@@ -18,8 +18,14 @@ import { DeploymentTarget } from '../../core/types';
 import { BaseProjectState } from '../../core/state';
 import { resolvePreviewUrl } from '../../../utils/urls';
 
-const PER_ATTEMPT_TIMEOUT_MS = 60000;  // 60 seconds per individual attempt
-const MASTER_DEPLOYMENT_TIMEOUT_MS = 300000;  // 5 minutes total
+// A first sandbox deploy must run `bun install` (up to ~4 min for imported projects —
+// see SandboxSdkClient.setupInstance) BEFORE the dev server starts. The per-attempt
+// timeout must exceed one full install; otherwise the attempt is killed mid-install and
+// the retry shuts down the still-installing instance and restarts from scratch, so a
+// heavy import never finishes installing. Real failures still throw fast (the cap only
+// bites on a genuine hang), and the build-job escalates after a few failures regardless.
+const PER_ATTEMPT_TIMEOUT_MS = 300000;  // 5 min: one attempt must cover a full dependency install
+const MASTER_DEPLOYMENT_TIMEOUT_MS = 600000;  // 10 min: backstop with room for the fail-fast window
 const HEALTH_CHECK_INTERVAL_MS = 30000;
 
 /**
@@ -362,11 +368,16 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
             logger.info(`Deployment attempt ${attempt}`, { sessionId: this.getSessionId() });
             
             try {
-                // Callback: deployment starting (only on first attempt)
-                callbacks?.onStarted?.({
-                    message: "Deploying code to sandbox service",
-                    files: files.map(f => ({ filePath: f.filePath }))
-                });
+                // Signal deployment start once per intent (first attempt only) so the
+                // build state machine treats the internal retries as a single deploy.
+                // Re-signalling each attempt would reset failure tracking / the phase
+                // timer and mask a hopeless deploy as an endless "Running checks…".
+                if (attempt === 1) {
+                    callbacks?.onStarted?.({
+                        message: "Deploying code to sandbox service",
+                        files: files.map(f => ({ filePath: f.filePath }))
+                    });
+                }
 
                 // Core deployment with per-attempt timeout
                 const deployPromise = this.deploy({

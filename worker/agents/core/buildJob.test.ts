@@ -9,6 +9,7 @@ import {
 	canMarkDone,
 	isTerminalState,
 	PHASE_TIMEOUTS,
+	MAX_DEPLOY_FAILURES,
 	type BuildJob,
 } from './buildJob';
 
@@ -118,6 +119,55 @@ describe('buildJob state machine', () => {
 		job = feed(job, 'generation_started');
 		const within = checkTimeout(job, job.lastTransitionAt + 1000);
 		expect(within).toBeNull();
+	});
+
+	it('escalates a stuck deploy to failed with the real error (fail fast)', () => {
+		let job = createBuildJob(clock);
+		job = feed(job, 'generation_started');
+		job = feed(job, 'phase_implemented'); // completedPhases=1, deployable
+		job = feed(job, 'deployment_started'); // -> preview_starting
+		expect(job.state).toBe('preview_starting');
+		const startedAt = job.lastTransitionAt;
+
+		// Early failures record the error but DON'T change state or reset the timer,
+		// so the per-phase timeout still acts as a backstop.
+		for (let i = 1; i < MAX_DEPLOY_FAILURES; i++) {
+			job = applyMessageToBuildJob(job, 'deployment_failed', tick(), {
+				errorMessage: 'bun: command not found',
+			});
+			expect(job.state).toBe('preview_starting');
+			expect(job.lastTransitionAt).toBe(startedAt);
+			expect(job.deployFailures).toBe(i);
+		}
+
+		// The MAX-th failure escalates to a terminal failure carrying the real error.
+		job = applyMessageToBuildJob(job, 'deployment_failed', tick(), {
+			errorMessage: 'bun: command not found',
+		});
+		expect(job.state).toBe('failed');
+		expect(job.lastError).toBe('bun: command not found');
+
+		// Late failures from the still-running retry loop are ignored once terminal.
+		const terminal = applyMessageToBuildJob(job, 'deployment_failed', tick(), { errorMessage: 'x' });
+		expect(terminal.state).toBe('failed');
+	});
+
+	it('a new deploy start clears prior failures and recovers from failed', () => {
+		let job = createBuildJob(clock);
+		job = feed(job, 'generation_started');
+		job = feed(job, 'phase_implemented');
+		job = feed(job, 'deployment_started');
+		for (let i = 0; i < MAX_DEPLOY_FAILURES; i++) {
+			job = applyMessageToBuildJob(job, 'deployment_failed', tick(), { errorMessage: 'x' });
+		}
+		expect(job.state).toBe('failed');
+
+		// A genuinely new deploy intent re-enters the preview phase and resets the count.
+		job = feed(job, 'deployment_started');
+		expect(job.state).toBe('preview_starting');
+		expect(job.deployFailures).toBe(0);
+		job = feed(job, 'deployment_completed');
+		expect(job.state).toBe('preview_ready');
 	});
 
 	it('counts files without spamming phase history', () => {

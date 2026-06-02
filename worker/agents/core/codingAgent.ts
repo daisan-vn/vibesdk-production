@@ -766,7 +766,7 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
     ): void {
         // Feed the canonical build-job state machine from every pipeline event,
         // BEFORE relaying the original message, so build state stays authoritative.
-        this.updateBuildJobFromMessage(type);
+        this.updateBuildJobFromMessage(type, data);
         broadcastToConnections(this, type, data || {} as WebSocketMessageData<T>);
     }
 
@@ -795,13 +795,21 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
      * change and broadcasts a `build_state` snapshot when a state-relevant
      * field changed (state / deployable / completedPhases) — never on every file.
      */
-    private updateBuildJobFromMessage(type: string): void {
+    private updateBuildJobFromMessage(type: string, data?: unknown): void {
         if (type === WebSocketMessageResponses.BUILD_STATE) return; // avoid recursion
         try {
             const prev = this.state.buildJob ?? createBuildJob(Date.now());
+            // Surface the real failure text (e.g. from deployment_failed) so an escalated
+            // `failed` state carries the actual error instead of a generic placeholder.
+            const errorMessage =
+                data && typeof data === 'object' && 'error' in data &&
+                typeof (data as { error?: unknown }).error === 'string'
+                    ? (data as { error: string }).error
+                    : undefined;
             const next = applyMessageToBuildJob(prev, type, Date.now(), {
                 requiredPhasesTotal: this.computeRequiredPhases(),
                 planMode: this.state.executionMode === 'plan',
+                errorMessage,
                 log: this.buildLog,
             });
             if (next === prev) return;

@@ -75,6 +75,11 @@ export interface BuildJob {
 	requiredPhasesTotal: number;
 	/** How many times this job has been retried. */
 	retryCount: number;
+	/**
+	 * Consecutive sandbox-deploy failures in the current deploy burst (see
+	 * MAX_DEPLOY_FAILURES). Reset when a new deploy starts or one succeeds.
+	 */
+	deployFailures: number;
 	/** True only when the generated app can actually be deployed. */
 	deployable: boolean;
 	/** Timestamp of the last transition — drives per-phase timeout. */
@@ -98,6 +103,15 @@ export const PHASE_TIMEOUTS: Partial<Record<BuildJobState, number>> = {
 	preview_starting: 180_000,
 	preview_ready: 120_000,
 };
+
+/**
+ * Consecutive sandbox-deploy failures that force the build to `failed`.
+ * The sandbox deploy retries internally (DeploymentManager) until a 5-minute
+ * master timeout; without this cap a hopeless deploy retries invisibly the whole
+ * time and the UI is stuck on "Running checks…". Failing after a few honest
+ * attempts surfaces the real error fast.
+ */
+export const MAX_DEPLOY_FAILURES = 3;
 
 export function isTerminalState(state: BuildJobState): boolean {
 	return TERMINAL.has(state);
@@ -129,6 +143,7 @@ export function createBuildJob(now: number): BuildJob {
 		completedPhases: 0,
 		requiredPhasesTotal: 1,
 		retryCount: 0,
+		deployFailures: 0,
 		deployable: false,
 		lastTransitionAt: now,
 	};
@@ -183,7 +198,7 @@ export interface TransitionOpts {
 	patch?: Partial<
 		Pick<
 			BuildJob,
-			'filesGenerated' | 'completedPhases' | 'requiredPhasesTotal' | 'deployable' | 'retryCount'
+			'filesGenerated' | 'completedPhases' | 'requiredPhasesTotal' | 'deployable' | 'retryCount' | 'deployFailures'
 		>
 	>;
 	log?: BuildLogFn;
@@ -253,6 +268,27 @@ export function transition(
 }
 
 /**
+ * Append a non-fatal error to the job WITHOUT changing state or resetting the
+ * phase timer. A burst of retryable errors must not keep a stalled phase alive
+ * (which would defeat the per-phase timeout), so `lastTransitionAt` is preserved.
+ */
+function recordError(
+	job: BuildJob,
+	now: number,
+	message: string,
+	patch?: Partial<Pick<BuildJob, 'deployFailures'>>,
+): BuildJob {
+	return {
+		...job,
+		...patch,
+		lastError: message,
+		errors: [...job.errors, { at: now, state: job.state, message }],
+		timestamps: { ...job.timestamps, updatedAt: now },
+		// lastTransitionAt intentionally preserved (no timer reset).
+	};
+}
+
+/**
  * Mark the connection as lost. Stores the current working state so we can
  * resume after reconnect without auto-advancing the phase.
  */
@@ -290,9 +326,9 @@ export function applyMessageToBuildJob(
 	job: BuildJob,
 	type: string,
 	now: number,
-	opts: { requiredPhasesTotal?: number; planMode?: boolean; log?: BuildLogFn } = {},
+	opts: { requiredPhasesTotal?: number; planMode?: boolean; errorMessage?: string; log?: BuildLogFn } = {},
 ): BuildJob {
-	const { requiredPhasesTotal, planMode, log } = opts;
+	const { requiredPhasesTotal, planMode, errorMessage, log } = opts;
 	const t = (to: BuildJobState, extra?: TransitionOpts) =>
 		transition(job, to, now, { ...extra, log });
 
@@ -357,11 +393,20 @@ export function applyMessageToBuildJob(
 				? t('installing_dependencies', { note: 'running setup commands' })
 				: job;
 		case 'deployment_started':
-			return t('preview_starting', { note: 'preview deploy started' });
+			// onStarted fires once per deploy intent (DeploymentManager guards it to the
+			// first attempt), so this marks a genuinely new deploy: clear stale failures
+			// and enter the preview phase, recovering from a prior `failed`. Never
+			// resurrect a user-`aborted` build.
+			if (job.state === 'aborted') return job;
+			return transition(job, 'preview_starting', now, {
+				note: 'preview deploy started',
+				patch: { deployFailures: 0 },
+				log,
+			});
 		case 'deployment_completed':
 			return transition(job, 'preview_ready', now, {
 				note: 'preview ready',
-				patch: { deployable: job.completedPhases > 0 },
+				patch: { deployable: job.completedPhases > 0, deployFailures: 0 },
 				log,
 			});
 		case 'generation_complete':
@@ -378,9 +423,31 @@ export function applyMessageToBuildJob(
 			return t('aborted', { note: 'generation stopped by user' });
 		case 'generation_resumed':
 			return t('generating_code', { note: 'generation resumed' });
-		case 'deployment_failed':
+		case 'deployment_failed': {
+			// The sandbox deploy retries internally; count failures in this burst and
+			// escalate to a real `failed` (carrying the actual error) after a few
+			// attempts, instead of letting the UI spin on "Running checks…" until the
+			// 5-minute master timeout. Recording (not transitioning) the earlier
+			// failures preserves the phase timer as a backstop. Ignore stray late
+			// failures once already terminal.
+			if (isTerminalState(job.state)) return job;
+			// `|| 0` keeps pre-migration jobs (persisted before this field existed) safe.
+			const failures = (job.deployFailures || 0) + 1;
+			if (failures >= MAX_DEPLOY_FAILURES) {
+				return transition(job, 'failed', now, {
+					error: errorMessage ?? `Deployment failed after ${failures} attempts`,
+					patch: { deployFailures: failures },
+					log,
+				});
+			}
+			return recordError(job, now, errorMessage ?? 'deployment failed', { deployFailures: failures });
+		}
 		case 'cloudflare_deployment_error':
-			return t(job.state, { error: 'deployment failed' });
+			// Cloudflare Workers deploy is a separate, user-triggered action. Record the
+			// error without resetting the phase timer and without failing the build.
+			return isTerminalState(job.state)
+				? job
+				: recordError(job, now, errorMessage ?? 'cloudflare deployment failed');
 		case 'error':
 		case 'rate_limit_error':
 			// Record but don't fail — many errors are recoverable mid-build.
