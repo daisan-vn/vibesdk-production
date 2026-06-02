@@ -35,6 +35,7 @@ import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { sendWebSocketMessage } from './utils/websocket-helpers';
 import { detectContentType, isDocumentationPath, isMarkdownFile } from './utils/content-detector';
+import { deduplicateMessages } from './utils/deduplicate-messages';
 import { mergeFiles } from '@/utils/file-helpers';
 import { ChatModals } from './components/chat-modals';
 import { MainContentPanel } from './components/main-content-panel';
@@ -567,7 +568,7 @@ export default function Chat() {
 		}
 	}, [navBlocker, handleStopGeneration]);
 
-	const [mainMessage, ...otherMessages] = useMemo(() => messages, [messages]);
+	const [mainMessage, ...otherMessages] = useMemo(() => deduplicateMessages(messages), [messages]);
 
 	const { scrollToBottom } = useAutoScroll(messagesContainerRef, { behavior: 'smooth', watch: [messages] });
 

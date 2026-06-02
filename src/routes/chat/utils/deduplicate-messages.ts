@@ -16,28 +16,46 @@ import type { ChatMessage } from './message-helpers';
  */
 export function deduplicateMessages(messages: readonly ChatMessage[]): ChatMessage[] {
     if (messages.length === 0) return [];
-    
+
     const result: ChatMessage[] = [];
     let lastAssistantContent: string | null = null;
-    
+    let lastAssistantIdx = -1;
+
     for (const msg of messages) {
         if (msg.role !== 'assistant') {
             // Keep all non-assistant messages (user, tool, etc.)
             result.push(msg);
             continue;
         }
-        
-        // For assistant messages, check against last assistant content
-        if (lastAssistantContent !== null && msg.content === lastAssistantContent) {
-            // Skip this duplicate
+
+        // Duplicate = same NON-EMPTY text as the previous assistant message. This happens
+        // when the streamed reply and the post-tool reply arrive under different
+        // conversationIds, leaving two identical bubbles with a tool chip between them.
+        // Skip the duplicate, but carry over any tool events it held so the tool chip
+        // (e.g. queue_request) is preserved on the message we keep.
+        if (
+            lastAssistantContent !== null &&
+            msg.content === lastAssistantContent &&
+            msg.content.trim() !== '' &&
+            lastAssistantIdx !== -1
+        ) {
+            const incoming = msg.ui?.toolEvents;
+            if (incoming && incoming.length > 0) {
+                const kept = result[lastAssistantIdx];
+                result[lastAssistantIdx] = {
+                    ...kept,
+                    ui: { ...kept.ui, toolEvents: [...(kept.ui?.toolEvents ?? []), ...incoming] },
+                };
+            }
             continue;
         }
-        
-        // Not a duplicate - keep it and update last content
+
+        // Not a duplicate - keep it and remember it as the comparison anchor.
         result.push(msg);
+        lastAssistantIdx = result.length - 1;
         lastAssistantContent = msg.content;
     }
-    
+
     return result;
 }
 

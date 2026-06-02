@@ -602,7 +602,7 @@ export function createWebSocketMessageHandler(deps: HandleMessageDeps) {
                 setFiles((prev) => setAllFilesCompleted(prev));
                 setProjectStages((prev) => completeStages(prev, ['code']));
 
-                sendMessage(createAIMessage('generation-complete', 'Code generation has been completed.'));
+                sendMessage(createAIMessage('generation-complete', '✓ Đã hoàn tất.'));
                 
                 // Reset all phase indicators
                 setIsPhaseProgressActive(false);
