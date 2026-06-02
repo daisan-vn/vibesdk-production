@@ -568,7 +568,10 @@ export default function Chat() {
 		}
 	}, [navBlocker, handleStopGeneration]);
 
-	const [mainMessage, ...otherMessages] = useMemo(() => deduplicateMessages(messages), [messages]);
+	const [mainMessage, ...otherMessages] = useMemo(() => {
+		// Dedup is display-only — never let it crash the chat route; fall back to raw messages.
+		try { return deduplicateMessages(messages); } catch { return messages; }
+	}, [messages]);
 
 	const { scrollToBottom } = useAutoScroll(messagesContainerRef, { behavior: 'smooth', watch: [messages] });
 

@@ -41,4 +41,13 @@ describe('deduplicateMessages', () => {
         expect(out.filter((m) => m.role === 'assistant')).toHaveLength(1);
         expect(out.filter((m) => m.role === 'user')).toHaveLength(1);
     });
+
+    it('never throws on non-string content (placeholder / multimodal / undefined)', () => {
+        const weird = [
+            { role: 'assistant', conversationId: 'a', content: undefined as unknown as string },
+            { role: 'assistant', conversationId: 'b', content: 'hello' },
+            { role: 'assistant', conversationId: 'c', content: ['x'] as unknown as string },
+        ] as ChatMessage[];
+        expect(() => deduplicateMessages(weird)).not.toThrow();
+    });
 });

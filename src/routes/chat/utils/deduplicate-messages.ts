@@ -33,10 +33,14 @@ export function deduplicateMessages(messages: readonly ChatMessage[]): ChatMessa
         // conversationIds, leaving two identical bubbles with a tool chip between them.
         // Skip the duplicate, but carry over any tool events it held so the tool chip
         // (e.g. queue_request) is preserved on the message we keep.
+        // `content` is typed as string but can be undefined / non-string at runtime
+        // (placeholders, multimodal, restored history). Normalize before any string op
+        // so a stray value can never throw during render (which crashes the whole route).
+        const content = typeof msg.content === 'string' ? msg.content : '';
         if (
             lastAssistantContent !== null &&
-            msg.content === lastAssistantContent &&
-            msg.content.trim() !== '' &&
+            content === lastAssistantContent &&
+            content.trim() !== '' &&
             lastAssistantIdx !== -1
         ) {
             const incoming = msg.ui?.toolEvents;
@@ -53,7 +57,7 @@ export function deduplicateMessages(messages: readonly ChatMessage[]): ChatMessa
         // Not a duplicate - keep it and remember it as the comparison anchor.
         result.push(msg);
         lastAssistantIdx = result.length - 1;
-        lastAssistantContent = msg.content;
+        lastAssistantContent = content;
     }
 
     return result;
