@@ -144,10 +144,11 @@ const worker = {
 		// --- Pre-flight Checks ---
 
 		// 1. Critical configuration check: Ensure custom domain is set.
-        const previewDomain = getPreviewDomain(env);
+        let previewDomain = getPreviewDomain(env);
 		if (!previewDomain || previewDomain.trim() === '') {
-			logger.error('FATAL: env.CUSTOM_DOMAIN is not configured in wrangler.toml or the Cloudflare dashboard.');
-			return new Response('Server configuration error: Application domain is not set.', { status: 500 });
+			// No CUSTOM_DOMAIN configured (e.g. a workers.dev deploy): fall back to the
+			// request hostname so the platform still serves instead of erroring out.
+			previewDomain = new URL(request.url).hostname;
 		}
 
 		const url = new URL(request.url);
@@ -163,7 +164,7 @@ const worker = {
 
 		// Normalize hostnames for both local development (localhost) and production.
 		const isMainDomainRequest =
-			hostname === env.CUSTOM_DOMAIN || hostname === 'localhost';
+			hostname === (env.CUSTOM_DOMAIN || previewDomain) || hostname === 'localhost';
 		const isSubdomainRequest =
 			hostname.endsWith(`.${previewDomain}`) ||
 			(hostname.endsWith('.localhost') && hostname !== 'localhost');
