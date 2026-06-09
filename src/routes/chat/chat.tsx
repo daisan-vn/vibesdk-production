@@ -174,6 +174,7 @@ export default function Chat() {
 		images: userImages,
 		projectType: urlProjectType as ProjectType,
 		executionMode: searchParams.get('mode') === 'build' ? 'build' : undefined,
+		useSupabase: searchParams.get('supabase') === '1',
 		onDebugMessage: addDebugMessage,
 		onVaultUnlockRequired: handleVaultUnlockRequired,
 	});

@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from 'react';
 import { ArrowRight, Info } from 'react-feather';
-import { Loader2, Hammer, Upload } from 'lucide-react';
+import { Loader2, Hammer, Upload, Database } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { useAuth } from '@/contexts/auth-context';
 import { useI18n } from '@/contexts/i18n-context';
@@ -41,6 +41,7 @@ export default function Home() {
 	const { data: limitsData, loading: usageLimitsLoading } = useLimitsContext();
 	const [showLimitDialog, setShowLimitDialog] = useState<React.ReactElement | null>(null);
 	const [importOpen, setImportOpen] = useState(false);
+	const [useSupabase, setUseSupabase] = useState(false);
 
 	// Open the import dialog (.zip / GitHub URL + optional env), after auth.
 	const openImport = useCallback(() => {
@@ -127,7 +128,8 @@ export default function Home() {
 		// Encode images as JSON if present
 		const imageParam = images.length > 0 ? `&images=${encodeURIComponent(JSON.stringify(images))}` : '';
 		const modeParam = executionMode ? `&mode=${executionMode}` : '';
-		const intendedUrl = `/chat/new?query=${encodedQuery}&projectType=${encodedMode}${imageParam}${modeParam}`;
+		const supabaseParam = useSupabase ? '&supabase=1' : '';
+		const intendedUrl = `/chat/new?query=${encodedQuery}&projectType=${encodedMode}${imageParam}${modeParam}${supabaseParam}`;
 
 		if (
 			!requireAuth({
@@ -271,6 +273,22 @@ export default function Home() {
 							leftActions={
 								<div className="flex items-center gap-2">
 									<ModelQualitySelector />
+										<button
+											type="button"
+											onClick={() => setUseSupabase((v) => !v)}
+											title={t(
+												'Enable Supabase: scaffold auth + RBAC + database into the generated app',
+												'Bật Supabase: seed sẵn auth + RBAC + database cho app sinh ra',
+											)}
+											className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors ${
+												useSupabase
+													? 'border-emerald-500 bg-emerald-500/15 text-emerald-300'
+													: 'border-border-primary bg-bg-2/40 text-text-tertiary hover:border-accent/40 hover:text-text-primary'
+											}`}
+										>
+											<Database className="size-3.5" />
+											Supabase {useSupabase ? 'ON' : 'OFF'}
+										</button>
 									<button
 										type="button"
 										onClick={openImport}
