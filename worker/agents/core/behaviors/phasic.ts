@@ -20,6 +20,7 @@ import { PhaseGenerationOperation } from '../../operations/PhaseGeneration';
 import { FastCodeFixerOperation } from '../../operations/PostPhaseCodeFixer';
 import { customizePackageJson, customizeTemplateFiles, generateProjectName } from '../../utils/templateCustomizer';
 import { generateBlueprint } from '../../planning/blueprint';
+import { getSupabaseScaffoldFiles, ensureSupabaseDep } from '../../utils/supabaseScaffold';
 import { RateLimitExceededError } from 'shared/types/errors';
 import {  ImageAttachment, type ProcessedImageAttachment } from '../../../types/image-attachment';
 import { OperationOptions } from '../../operations/common';
@@ -81,7 +82,7 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         if (!templateInfo || !templateInfo.templateDetails) {
             throw new Error('Phasic initialization requires templateInfo.templateDetails');
         }
-        const { query, language, frameworks, hostname, inferenceContext, sandboxSessionId } = initArgs;
+        const { query, language, frameworks, hostname, inferenceContext, sandboxSessionId, useSupabase } = initArgs;
         
         // Generate a blueprint
         this.logger.info('Generating blueprint', { query, queryLength: query.length, imagesCount: initArgs.images?.length || 0 });
@@ -133,6 +134,7 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
                 templateMetaInfo: templateInfo?.selection,
                 images: initArgs.images,
                 projectType: this.projectType,
+                useSupabase,
                 stream: {
                     chunk_size: 256,
                     onChunk: (chunk) => {
@@ -196,6 +198,22 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         );
         
         this.logger.info('Committed customized template files to git');
+
+        // P2: seed a deterministic Supabase auth + RBAC scaffold so generation builds on a
+        // working foundation (client, auth context, ProtectedRoute, login/access-pending, SQL).
+        if (useSupabase && !isImport) {
+            const scaffold = getSupabaseScaffoldFiles();
+            const basePkg = customizedFiles['package.json'] ?? packageJson;
+            if (basePkg) {
+                scaffold.push({
+                    filePath: 'package.json',
+                    fileContents: ensureSupabaseDep(basePkg),
+                    filePurpose: 'Add @supabase/supabase-js dependency',
+                });
+            }
+            await this.fileManager.saveGeneratedFiles(scaffold, 'chore: seed Supabase auth + RBAC scaffold', true);
+            this.logger.info('Seeded Supabase scaffold', { fileCount: scaffold.length });
+        }
 
         // Import flow: overlay the external project files on top of the base template.
         // Imported files take priority in FileManager, so the session starts from the

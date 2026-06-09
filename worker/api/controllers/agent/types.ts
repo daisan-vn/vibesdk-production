@@ -23,6 +23,9 @@ export interface CodeGenArgs {
     /** Import flow: seed the session with files from an external (e.g. Lovable) project. */
     externalFiles?: Array<{ filePath: string; fileContents: string }>;
     importSource?: 'zip' | 'github' | 'template';
+
+    /** P2: seed a Supabase auth + RBAC scaffold into the generated app. */
+    useSupabase?: boolean;
 }
 
 /**

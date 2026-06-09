@@ -55,6 +55,7 @@ export function useChat({
 	images: userImages,
 	projectType = 'app',
 	executionMode,
+	useSupabase,
 	onDebugMessage,
 	onTerminalMessage,
 	onVaultUnlockRequired,
@@ -65,6 +66,8 @@ export function useChat({
 	projectType?: ProjectType;
 	/** Initial Plan/Build mode for a NEW session (from ?mode=build). Defaults to plan. */
 	executionMode?: 'plan' | 'build';
+	/** P2: seed a Supabase auth + RBAC scaffold into the generated app. */
+	useSupabase?: boolean;
 	onDebugMessage?: (type: 'error' | 'warning' | 'info' | 'websocket', message: string, details?: string, source?: string, messageType?: string, rawMessage?: unknown) => void;
 	onTerminalMessage?: (log: { id: string; content: string; type: 'command' | 'stdout' | 'stderr' | 'info' | 'error' | 'warn' | 'debug'; timestamp: number; source?: string }) => void;
 	onVaultUnlockRequired?: (reason: string) => void;
@@ -503,6 +506,7 @@ export function useChat({
 						projectType,
 						images: userImages, // Pass images from URL params for multi-modal blueprint
 						mode: executionMode, // Plan/Build mode from the homepage (?mode=build → build now)
+						useSupabase, // P2: seed Supabase auth + RBAC scaffold when enabled
 					});
 
 					const parser = createRepairingJSONParser();
@@ -645,6 +649,7 @@ export function useChat({
 		init();
 	}, [
 		projectType,
+		useSupabase,
 		connectWithRetry,
 		loadBootstrapFiles,
 		onDebugMessage,

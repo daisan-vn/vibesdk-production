@@ -11,6 +11,7 @@ import { imagesToBase64 } from 'worker/utils/images';
 import { ProcessedImageAttachment } from 'worker/types/image-attachment';
 import { getTemplateImportantFiles } from 'worker/services/sandbox/utils';
 import { ProjectType } from '../core/types';
+import { SUPABASE_SCAFFOLD_GUIDANCE } from '../utils/supabaseScaffold';
 
 const logger = createLogger('Blueprint');
 
@@ -339,6 +340,8 @@ interface BaseBlueprintGenerationArgs {
     };
     /** Optional Daisan specialist (Database/Search/Content) design brief to incorporate. */
     specialistBrief?: string;
+    /** P2: when true, append Supabase scaffold guidance so generation builds on it. */
+    useSupabase?: boolean;
 }
 
 export interface PhasicBlueprintGenerationArgs extends BaseBlueprintGenerationArgs {
@@ -359,7 +362,7 @@ export async function generateBlueprint(args: AgenticBlueprintGenerationArgs): P
 export async function generateBlueprint(
     args: PhasicBlueprintGenerationArgs | AgenticBlueprintGenerationArgs
 ): Promise<Blueprint> {
-    const { env, inferenceContext, query, language, frameworks, templateDetails, templateMetaInfo, images, stream, projectType, specialistBrief } = args;
+    const { env, inferenceContext, query, language, frameworks, templateDetails, templateMetaInfo, images, stream, projectType, specialistBrief, useSupabase } = args;
     const isAgentic = !templateDetails || !templateMetaInfo;
     
     try {
@@ -392,6 +395,10 @@ export async function generateBlueprint(
         // Incorporate Daisan specialist (Database/Search/Content) design brief, if any.
         if (specialistBrief) {
             systemPrompt = `${systemPrompt}\n\n${specialistBrief}`;
+        }
+        // P2: when Supabase mode is on, steer generation to build on the seeded scaffold.
+        if (useSupabase) {
+            systemPrompt = `${systemPrompt}\n\n${SUPABASE_SCAFFOLD_GUIDANCE}`;
         }
         
         const systemPromptMessage = createSystemMessage(generalSystemPromptBuilder(systemPrompt, {
