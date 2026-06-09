@@ -1,0 +1,80 @@
+name: Deploy to Cloudflare (studio.daisan.ai)
+
+# Manual trigger from the Actions tab (or: gh workflow run deploy.yml).
+# Runs on a GitHub-hosted runner, which HAS Docker — required to build the
+# sandbox container (wrangler.jsonc has `containers`), unlike the local machine.
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Why are you deploying?'
+        required: false
+        default: 'manual deploy'
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The deploy script reads .prod.vars via `bun --env-file` and also uploads
+      # these as Worker secrets. Build it from GitHub repo Secrets/Variables.
+      # NOTE: GitHub forbids secret names starting with GITHUB_, so the GitHub
+      # OAuth creds are stored as GH_OAUTH_* and mapped here.
+      - name: Write .prod.vars
+        run: |
+          umask 077
+          cat > .prod.vars <<EOF
+          # --- Required ---
+          CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          TEMPLATES_REPOSITORY=${{ secrets.TEMPLATES_REPOSITORY }}
+          JWT_SECRET=${{ secrets.JWT_SECRET }}
+          SECRETS_ENCRYPTION_KEY=${{ secrets.SECRETS_ENCRYPTION_KEY }}
+          WEBHOOK_SECRET=${{ secrets.WEBHOOK_SECRET }}
+          AI_PROXY_JWT_SECRET=${{ secrets.AI_PROXY_JWT_SECRET }}
+          # --- AI (AI Gateway unified billing OR per-provider keys) ---
+          CLOUDFLARE_AI_GATEWAY=${{ secrets.CLOUDFLARE_AI_GATEWAY }}
+          CLOUDFLARE_AI_GATEWAY_TOKEN=${{ secrets.CLOUDFLARE_AI_GATEWAY_TOKEN }}
+          PLATFORM_MODEL_PROVIDERS=${{ vars.PLATFORM_MODEL_PROVIDERS }}
+          ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_AI_STUDIO_API_KEY=${{ secrets.GOOGLE_AI_STUDIO_API_KEY }}
+          OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}
+          # --- OAuth (optional, for GitHub/Google login) ---
+          GITHUB_CLIENT_ID=${{ secrets.GH_OAUTH_CLIENT_ID }}
+          GITHUB_CLIENT_SECRET=${{ secrets.GH_OAUTH_CLIENT_SECRET }}
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+          SENTRY_DSN=${{ secrets.SENTRY_DSN }}
+          # --- Non-secret config (repo Variables) ---
+          CUSTOM_DOMAIN=${{ vars.CUSTOM_DOMAIN }}
+          CUSTOM_PREVIEW_DOMAIN=${{ vars.CUSTOM_PREVIEW_DOMAIN }}
+          DISPATCH_NAMESPACE=${{ vars.DISPATCH_NAMESPACE }}
+          MAX_SANDBOX_INSTANCES=${{ vars.MAX_SANDBOX_INSTANCES }}
+          SANDBOX_INSTANCE_TYPE=${{ vars.SANDBOX_INSTANCE_TYPE }}
+          ENVIRONMENT=prod
+          EOF
+
+      - name: Deploy (builds sandbox container + wrangler deploy)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: bun run deploy
+
+      - name: Cleanup
+        if: always()
+        run: rm -f .prod.vars
