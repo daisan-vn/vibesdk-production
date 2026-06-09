@@ -456,7 +456,7 @@ export class CodingAgentController extends BaseController {
                 mode,
             } as const;
 
-            const initArgs = { ...baseInitArgs, externalFiles: body.externalFiles, importSource: body.importSource, templateInfo: { templateDetails, selection } }
+            const initArgs = { ...baseInitArgs, externalFiles: body.externalFiles, importSource: body.importSource, useSupabase: body.useSupabase, templateInfo: { templateDetails, selection } }
 
             const agentPromise = agentInstance.initialize(initArgs) as Promise<AgentState>;
             agentPromise.then(async (_state: AgentState) => {

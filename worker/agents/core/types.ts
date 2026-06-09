@@ -72,6 +72,8 @@ interface BaseAgentInitArgs {
     // Import flow: seed the session with files from an external project instead of starting bare.
     externalFiles?: Array<{ filePath: string; fileContents: string }>;
     importSource?: 'zip' | 'github' | 'template';
+    /** P2: seed a Supabase auth + RBAC scaffold and steer generation to build on it. */
+    useSupabase?: boolean;
 }
 
 /** Phasic agent initialization arguments */
