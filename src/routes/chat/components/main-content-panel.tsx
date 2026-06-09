@@ -6,6 +6,8 @@ import { RefreshCw } from 'lucide-react';
 import { Blueprint } from './blueprint';
 import { FileExplorer } from './file-explorer';
 import { PreviewIframe } from './preview-iframe';
+import { VisualEditController } from './visual-edit-controller';
+import { useVisualEdit } from '../hooks/use-visual-edit';
 import { MarkdownDocsPreview } from './markdown-docs-preview';
 import { ViewContainer } from './view-container';
 import { ViewHeader } from './view-header';
@@ -68,6 +70,8 @@ interface MainContentPanelProps {
 
 	// Refs
 	previewRef: RefObject<HTMLIFrameElement | null>;
+	/** Apply a visual-edit instruction through the normal build pipeline. */
+	onVisualEditApply?: (instruction: string) => void;
 	editorRef: RefObject<HTMLDivElement | null>;
 }
 
@@ -100,6 +104,7 @@ export function MainContentPanel(props: MainContentPanelProps) {
 		behaviorType,
 		websocket,
 		previewRef,
+		onVisualEditApply,
 		editorRef,
 		templateDetails,
 	} = props;
@@ -155,6 +160,8 @@ export function MainContentPanel(props: MainContentPanelProps) {
 		);
 	};
 
+	const visualEdit = useVisualEdit(previewRef);
+
 	const renderPreviewView = () => {
 		if (!previewUrl) {
 			return null;
@@ -203,15 +210,27 @@ export function MainContentPanel(props: MainContentPanelProps) {
 				/>
 			</Suspense>
 		) : (
-			<PreviewIframe
-				src={previewUrl}
-				ref={previewRef}
-				className="flex-1 w-full h-full border-0"
-				title="Preview"
-				shouldRefreshPreview={shouldRefreshPreview}
-				manualRefreshTrigger={manualRefreshTrigger}
-				webSocket={websocket}
-			/>
+			<div className="relative flex flex-1 w-full h-full min-h-0">
+				<PreviewIframe
+					src={previewUrl}
+					ref={previewRef}
+					className="flex-1 w-full h-full border-0"
+					title="Preview"
+					shouldRefreshPreview={shouldRefreshPreview}
+					manualRefreshTrigger={manualRefreshTrigger}
+					webSocket={websocket}
+				/>
+				<VisualEditController
+					active={visualEdit.active}
+					selected={visualEdit.selected}
+					onToggle={visualEdit.toggle}
+					onClearSelection={visualEdit.clearSelection}
+					onApply={(instruction) => {
+						onVisualEditApply?.(instruction);
+						visualEdit.deactivate();
+					}}
+				/>
+			</div>
 		);
 
 		// Get lazy-loaded header actions component from feature registry

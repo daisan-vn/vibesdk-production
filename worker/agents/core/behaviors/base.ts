@@ -11,6 +11,7 @@ import { BaseProjectState, AgenticState, FileState } from '../state';
 import { AllIssues, AgentSummary, AgentInitArgs, BehaviorType, DeploymentTarget, ProjectType } from '../types';
 import { WebSocketMessageResponses } from '../../constants';
 import { analyzeForClarification } from '../../planning/clarify';
+import { generateFollowupSuggestions as inferFollowupSuggestions } from '../../planning/followupSuggestions';
 import { createBuildJob, transition as buildTransition } from '../buildJob';
 import { ProjectSetupAssistant } from '../../assistants/projectsetup';
 import { UserConversationProcessor, RenderToolCall } from '../../operations/UserConversationProcessor';
@@ -38,7 +39,7 @@ import { ICodingAgent } from '../../services/interfaces/ICodingAgent';
 import { SimpleCodeGenerationOperation } from '../../operations/SimpleCodeGeneration';
 import { AgentComponent } from '../AgentComponent';
 import type { AgentInfrastructure } from '../AgentCore';
-import { GitVersionControl } from '../../git';
+import { GitVersionControl, CommitInfo } from '../../git';
 import { DeepDebuggerOperation } from '../../operations/DeepDebugger';
 import type { DeepDebuggerInputs } from '../../operations/DeepDebugger';
 import { generatePortToken } from 'worker/utils/cryptoUtils';
@@ -431,6 +432,33 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
         return this.git;
     }
 
+    /**
+     * List restorable checkpoints (git commits) newest-first for the chat
+     * checkpoint menu. Every generated phase / file save is auto-committed, so
+     * this is effectively the project's full edit history. Best-effort: [] on failure.
+     */
+    async listCheckpoints(limit = 30): Promise<CommitInfo[]> {
+        try {
+            return await this.git.log(limit);
+        } catch {
+            return [];
+        }
+    }
+
+    /**
+     * Revert the project to a previous checkpoint (git commit): hard-reset the
+     * git fs, resync the in-memory file map, then redeploy so the live preview
+     * reflects the restored state.
+     */
+    async revertToCheckpoint(oid: string): Promise<{ filesReset: number; previewURL?: string }> {
+        const result = await this.git.reset(oid, { hard: true });
+        // reset() fires the files-changed callback, but await an explicit resync
+        // so the in-memory map is current before we redeploy.
+        await this.fileManager.syncGeneratedFilesMapFromGit();
+        const preview = await this.deployToSandbox([], true, `Revert to checkpoint ${oid.slice(0, 7)}`, true);
+        return { filesReset: result.filesReset, previewURL: preview?.previewURL };
+    }
+
 
     /**
      * State machine controller for code generation with user interaction support
@@ -650,6 +678,27 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
             generatedCode: this.fileManager.getGeneratedFiles(),
         };
         return Promise.resolve(summaryData);
+    }
+
+    /**
+     * Generate up to 3 short, context-aware follow-up suggestions ("what to do next"),
+     * shown as clickable chips under the chat composer (Lovable-style). Best-effort:
+     * returns [] on any failure so the UI simply hides the chips.
+     */
+    async generateFollowupSuggestions(): Promise<string[]> {
+        const blueprint = this.state.blueprint;
+        if (!blueprint) {
+            return [];
+        }
+        return inferFollowupSuggestions({
+            env: this.env,
+            inferenceContext: this.getInferenceContext(),
+            projectName: blueprint.projectName ?? this.state.projectName ?? '',
+            description: blueprint.description ?? '',
+            query: this.state.query ?? '',
+            filePaths: this.fileManager.getGeneratedFilePaths(),
+            recentUpdates: this.state.projectUpdatesAccumulator ?? [],
+        });
     }
 
     async getFullState(): Promise<TState> {

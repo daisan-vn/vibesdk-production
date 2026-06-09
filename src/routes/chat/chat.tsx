@@ -21,6 +21,7 @@ import { PhaseTimeline } from './components/phase-timeline';
 import { type DebugMessage } from './components/debug-panel';
 import { DeploymentControls } from './components/deployment-controls';
 import { useChat } from './hooks/use-chat';
+import { useFollowupSuggestions } from './hooks/use-followup-suggestions';
 import { type ModelConfigsInfo, type BlueprintType, type PhasicBlueprint, SUPPORTED_IMAGE_MIME_TYPES, type ProjectType, type FileType } from '@/api-types';
 import { featureRegistry } from '@/features';
 import { useFileContentStream } from './hooks/use-file-content-stream';
@@ -42,6 +43,8 @@ import { MainContentPanel } from './components/main-content-panel';
 import { ChatInput } from './components/chat-input';
 import { type ChatMode } from './components/mode-selector';
 import { ThemePanel } from './components/theme-panel';
+import { SuggestionChips } from './components/suggestion-chips';
+import { CheckpointsMenu } from './components/checkpoints-menu';
 import { toast } from 'sonner';
 import { useVault } from '@/hooks/use-vault';
 import { VaultUnlockModal } from '@/components/vault';
@@ -535,6 +538,13 @@ export default function Chat() {
 	const isBuildActive =
 		isGenerating || isGeneratingBlueprint || isDebugging || isThinking || isJobRunning;
 
+	// Lovable-style follow-up chips: fetched when a turn finishes, cleared while busy.
+	const { suggestions: followupSuggestions } = useFollowupSuggestions({
+		chatId,
+		busy: isBuildActive,
+		ready: !!blueprint,
+	});
+
 	// Warn on tab reload/close while building (beforeunload)
 	useEffect(() => {
 		if (!isBuildActive) return;
@@ -703,14 +713,14 @@ export default function Chat() {
 		disabled: isChatDisabled,
 	});
 
-	const onNewMessage = useCallback(
-		(e: FormEvent) => {
-			e.preventDefault();
+	const sendComposerMessage = useCallback(
+		(text: string) => {
+			const message = text.trim();
 
 			// Allow sending while Daisan is building (the backend queues the
 			// instruction into pendingUserInputs, consumed between phases). Only
 			// block truly empty messages or when there is no live socket.
-			if (!newMessage.trim() || !websocket) {
+			if (!message || !websocket) {
 				return;
 			}
 
@@ -730,11 +740,11 @@ export default function Chat() {
 			// When generation is active, send as conversational AI suggestion.
 			// Include the current Plan/Build mode so the backend honours it.
 			sendWebSocketMessage(websocket, 'user_suggestion', {
-				message: newMessage,
+				message,
 				mode: chatMode,
 				images: images.length > 0 ? images : undefined,
 			});
-			sendUserMessage(newMessage);
+			sendUserMessage(message);
 			setNewMessage('');
 			// Clear images after sending
 			if (images.length > 0) {
@@ -743,7 +753,15 @@ export default function Chat() {
 			// Ensure we scroll after sending our own message
 			requestAnimationFrame(() => scrollToBottom());
 		},
-		[newMessage, websocket, sendUserMessage, scrollToBottom, images, clearImages, limitsData, limitsLoading, chatMode],
+		[websocket, sendUserMessage, scrollToBottom, images, clearImages, limitsData, limitsLoading, chatMode],
+	);
+
+	const onNewMessage = useCallback(
+		(e: FormEvent) => {
+			e.preventDefault();
+			sendComposerMessage(newMessage);
+		},
+		[newMessage, sendComposerMessage],
 	);
 
 	// Themes panel: apply a design-token change via the Build pipeline.
@@ -1083,9 +1101,19 @@ export default function Chat() {
 					</div>
 
 
-				<div className="flex items-center justify-end px-4 pt-1">
+				<div className="flex items-center justify-end gap-2 px-4 pt-1">
+					<CheckpointsMenu
+						chatId={chatId}
+						disabled={isBuildActive}
+						onReverted={() => setManualRefreshTrigger(Date.now())}
+					/>
 					<ThemePanel onApply={applyTheme} disabled={isChatDisabled} />
 				</div>
+				<SuggestionChips
+					suggestions={followupSuggestions}
+					onSelect={sendComposerMessage}
+					disabled={isChatDisabled}
+				/>
 				<ChatInput
 					newMessage={newMessage}
 					onMessageChange={setNewMessage}
@@ -1147,6 +1175,7 @@ export default function Chat() {
 								shouldRefreshPreview={shouldRefreshPreview}
 								manualRefreshTrigger={manualRefreshTrigger}
 								onManualRefresh={() => setManualRefreshTrigger(Date.now())}
+								onVisualEditApply={sendComposerMessage}
 								blueprint={blueprint}
 								activeFile={activeFile}
 								allFiles={allFiles}

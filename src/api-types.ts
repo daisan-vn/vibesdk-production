@@ -10,6 +10,9 @@ export type { SecretTemplate } from 'worker/types/secretsTemplates';
 // Base API Response Types
 export type { ControllerResponse, ApiResponse } from 'worker/api/controllers/types';
 
+// Git checkpoint metadata (used by the chat checkpoint/revert menu)
+export type { CommitInfo } from 'worker/agents/git';
+
 // Database Types
 export type {
   PaginationInfo,

@@ -9,7 +9,8 @@ import { getMimeType } from 'hono/utils/mime';
 import { normalizePath, isPathSafe } from '../../utils/pathUtils';
 import { FileManager } from '../services/implementations/FileManager';
 import { DeploymentManager } from '../services/implementations/DeploymentManager';
-import { GitVersionControl } from '../git';
+import { GitVersionControl, CommitInfo } from '../git';
+import { injectVisualEditBridge } from '../../services/preview/visualEditBridge';
 import { StateManager } from '../services/implementations/StateManager';
 import { PhasicCodingBehavior } from './behaviors/phasic';
 import { AgenticCodingBehavior } from './behaviors/agentic';
@@ -330,18 +331,26 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
         } catch (error) {
             this.logger().warn('Failed to capture CF token cookie on WS connect', { error });
         }
+        // Template details may not be loaded yet when a WS connects before onStart's
+        // ensureTemplateDetails() finishes. Guard EVERY access: the previously-unguarded
+        // getTemplateDetails() in the payload below threw "Template details not loaded",
+        // which escaped onConnect, dropped the socket, and caused an endless client
+        // reconnect storm ("Network connection lost"). Send a partial agent_connected
+        // instead — the client tolerates a missing templateDetails and fills it in later.
+        let templateDetails: TemplateDetails | undefined;
         let previewUrl = '';
         try {
-            if (this.behavior.getTemplateDetails().renderMode === 'browser') {
+            templateDetails = this.behavior.getTemplateDetails();
+            if (templateDetails.renderMode === 'browser') {
                 previewUrl = this.behavior.getBrowserPreviewURL();
             }
         } catch (error) {
-            this.logger().error('Error getting preview URL:', error);
+            this.logger().warn('Template details not ready on connect; sending partial agent_connected', { error });
         }
         sendToConnection(connection, WebSocketMessageResponses.AGENT_CONNECTED, {
             state: this.state,
-            templateDetails: this.behavior.getTemplateDetails(),
-            previewUrl: previewUrl
+            templateDetails,
+            previewUrl,
         });
     }
 
@@ -437,6 +446,18 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
 
     async getSummary(): Promise<AgentSummary> {
         return this.behavior.getSummary();
+    }
+
+    async generateFollowupSuggestions(): Promise<string[]> {
+        return this.behavior.generateFollowupSuggestions();
+    }
+
+    async listCheckpoints(limit?: number): Promise<CommitInfo[]> {
+        return this.behavior.listCheckpoints(limit);
+    }
+
+    async revertToCheckpoint(oid: string): Promise<{ filesReset: number; previewURL?: string }> {
+        return this.behavior.revertToCheckpoint(oid);
     }
 
     getPreviewUrlCache(): string {
@@ -1035,7 +1056,10 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
                 content = baseTag + '\n' + content;
             }
 
-            this.logger().info('[BROWSER SERVING] Injected base tag');
+            // Inject the visual-edit bridge so the studio can offer click-to-edit.
+            content = injectVisualEditBridge(content);
+
+            this.logger().info('[BROWSER SERVING] Injected base tag + visual-edit bridge');
         }
 
         return new Response(content, {

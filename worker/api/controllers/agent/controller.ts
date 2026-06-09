@@ -4,6 +4,7 @@ import { generateId } from '../../../utils/idGenerator';
 import { AgentState } from '../../../agents/core/state';
 import { BehaviorType, ProjectType, ChatMode, resolveChatMode } from '../../../agents/core/types';
 import { getAgentStub, getTemplateForQuery } from '../../../agents';
+import { CommitInfo } from '../../../agents/git';
 import {
     AgentConnectionData,
     AgentPreviewResponse,
@@ -762,6 +763,89 @@ export class CodingAgentController extends BaseController {
             return CodingAgentController.createSuccessResponse({ routes });
         } catch (error) {
             return CodingAgentController.handleError(error, 'get project routes') as ControllerResponse<ApiResponse<{ routes: string[] }>>;
+        }
+    }
+
+    /**
+     * Generate context-aware follow-up suggestions ("what to do next") for the chat
+     * composer, shown as clickable chips (Lovable-style). Owner-only via the route.
+     */
+    static async getFollowupSuggestions(
+        _request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext,
+    ): Promise<ControllerResponse<ApiResponse<{ suggestions: string[] }>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return CodingAgentController.createErrorResponse<{ suggestions: string[] }>('Missing agent ID parameter', 400);
+            }
+            const agentInstance = await getAgentStub(env, agentId);
+            if (!agentInstance || !(await agentInstance.isInitialized())) {
+                return CodingAgentController.createErrorResponse<{ suggestions: string[] }>('Project not found or not initialized', 404);
+            }
+            const suggestions = await agentInstance.generateFollowupSuggestions();
+            return CodingAgentController.createSuccessResponse({ suggestions });
+        } catch (error) {
+            return CodingAgentController.handleError(error, 'get followup suggestions') as ControllerResponse<ApiResponse<{ suggestions: string[] }>>;
+        }
+    }
+
+    /**
+     * List restorable checkpoints (git commits) for the chat checkpoint menu.
+     * Owner-only via the route.
+     */
+    static async listCheckpoints(
+        _request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext,
+    ): Promise<ControllerResponse<ApiResponse<{ checkpoints: CommitInfo[] }>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return CodingAgentController.createErrorResponse<{ checkpoints: CommitInfo[] }>('Missing agent ID parameter', 400);
+            }
+            const agentInstance = await getAgentStub(env, agentId);
+            if (!agentInstance || !(await agentInstance.isInitialized())) {
+                return CodingAgentController.createErrorResponse<{ checkpoints: CommitInfo[] }>('Project not found or not initialized', 404);
+            }
+            const checkpoints = await agentInstance.listCheckpoints();
+            return CodingAgentController.createSuccessResponse({ checkpoints });
+        } catch (error) {
+            return CodingAgentController.handleError(error, 'list checkpoints') as ControllerResponse<ApiResponse<{ checkpoints: CommitInfo[] }>>;
+        }
+    }
+
+    /**
+     * Revert the project to a checkpoint (git commit) and redeploy the preview.
+     * Owner-only via the route.
+     */
+    static async revertCheckpoint(
+        request: Request,
+        env: Env,
+        _: ExecutionContext,
+        context: RouteContext,
+    ): Promise<ControllerResponse<ApiResponse<{ filesReset: number; previewURL?: string }>>> {
+        try {
+            const agentId = context.pathParams.agentId;
+            if (!agentId) {
+                return CodingAgentController.createErrorResponse<{ filesReset: number; previewURL?: string }>('Missing agent ID parameter', 400);
+            }
+            const body = (await request.json().catch(() => ({}))) as { oid?: string };
+            const oid = (body.oid ?? '').trim();
+            if (!oid) {
+                return CodingAgentController.createErrorResponse<{ filesReset: number; previewURL?: string }>('No checkpoint oid provided', 400);
+            }
+            const agentInstance = await getAgentStub(env, agentId);
+            if (!agentInstance || !(await agentInstance.isInitialized())) {
+                return CodingAgentController.createErrorResponse<{ filesReset: number; previewURL?: string }>('Project not found or not initialized', 404);
+            }
+            const result = await agentInstance.revertToCheckpoint(oid);
+            return CodingAgentController.createSuccessResponse(result);
+        } catch (error) {
+            return CodingAgentController.handleError(error, 'revert checkpoint') as ControllerResponse<ApiResponse<{ filesReset: number; previewURL?: string }>>;
         }
     }
 
