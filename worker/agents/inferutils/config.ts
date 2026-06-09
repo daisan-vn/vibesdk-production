@@ -42,7 +42,8 @@ const COMMON_AGENT_CONFIGS = {
 
 const SHARED_IMPLEMENTATION_CONFIG = {
     reasoning_effort: 'low' as const,
-    max_tokens: 48000,
+    // Speed tune: 28k fits multi-file phases; raise if large phases truncate.
+    max_tokens: 28000,
     temperature: 1,
     fallbackModel: AIModels.GEMINI_2_5_PRO,
 };
@@ -132,8 +133,9 @@ const DEFAULT_AGENT_CONFIG: AgentConfig = {
         // Reliable frontier model for the plan; falls back to a STABLE (non-preview)
         // Gemini, never a preview model. Preview models were stalling builds at 0/1.
         name: AIModels.CLAUDE_4_5_SONNET,
-        reasoning_effort: 'high',
-        max_tokens: 64000,
+        // Speed tune: low reasoning + 20k = fast blueprint. Bump for complex apps.
+        reasoning_effort: 'low',
+        max_tokens: 20000,
         fallbackModel: AIModels.GEMINI_2_5_PRO,
         temperature: 1,
     },
