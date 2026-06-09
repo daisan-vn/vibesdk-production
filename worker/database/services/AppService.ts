@@ -59,6 +59,25 @@ export class AppService extends BaseService {
             .returning();
         return app;
     }
+
+    /**
+     * Create a forked (remixed) copy of an app, owned by the forking user.
+     * Points at the cloned agent session and links back via parentAppId.
+     */
+    async createForkedApp(original: EnhancedAppData, newAgentId: string, userId: string): Promise<schema.App> {
+        return this.createApp({
+            id: newAgentId,
+            title: `${original.title} (Remix)`,
+            description: original.description,
+            originalPrompt: original.originalPrompt,
+            finalPrompt: original.finalPrompt,
+            framework: original.framework,
+            userId,
+            visibility: 'private',
+            status: 'completed',
+            parentAppId: original.id,
+        });
+    }
     /**
      * Get public apps with pagination and sorting
      */

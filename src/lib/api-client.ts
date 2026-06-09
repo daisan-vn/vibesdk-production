@@ -15,6 +15,7 @@ import type{
 	AppDetailsData,
 	AppStarToggleData,
 	GitCloneTokenData,
+	ForkAppData,
 	UserAppsData,
 	ProfileUpdateData,
 	UserStatsData,
@@ -576,6 +577,15 @@ class ApiClient {
 		appId: string,
 	): Promise<ApiResponse<GitCloneTokenData>> {
 		return this.request<GitCloneTokenData>(`/api/apps/${appId}/git/token`, {
+			method: 'POST',
+		});
+	}
+
+	/**
+	 * Fork (remix) an app into a new session owned by the current user.
+	 */
+	async forkApp(appId: string): Promise<ApiResponse<ForkAppData>> {
+		return this.request<ForkAppData>(`/api/apps/${appId}/fork`, {
 			method: 'POST',
 		});
 	}
