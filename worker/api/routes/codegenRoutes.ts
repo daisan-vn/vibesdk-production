@@ -43,6 +43,15 @@ export function setupCodegenRoutes(app: Hono<AppEnv>): void {
     // List the project's client-side routes for the preview route navigator - OWNER ONLY
     app.get('/api/agent/:agentId/routes', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.getProjectRoutes));
 
+    // Context-aware follow-up suggestions for the composer (Lovable-style chips) - OWNER ONLY
+    app.get('/api/agent/:agentId/suggestions', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.getFollowupSuggestions));
+
+    // List restorable checkpoints (git commits) for the chat checkpoint menu - OWNER ONLY
+    app.get('/api/agent/:agentId/checkpoints', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.listCheckpoints));
+
+    // Revert the project to a checkpoint and redeploy - OWNER ONLY
+    app.post('/api/agent/:agentId/checkpoints/revert', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.revertCheckpoint));
+
     // Update the project's .env (Supabase keys etc.) and redeploy - OWNER ONLY
     app.post('/api/agent/:agentId/env', setAuthLevel(AuthConfig.ownerOnly), adaptController(CodingAgentController, CodingAgentController.updateEnv));
 

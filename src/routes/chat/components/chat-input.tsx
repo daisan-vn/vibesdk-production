@@ -7,6 +7,7 @@ import { type UsageSummary } from '@/hooks/use-limits';
 import { ModeSelector, type ChatMode } from './mode-selector';
 import { ModelQualitySelector } from './model-quality-selector';
 import { ImageUploadButton } from '@/components/image-upload-button';
+import { VoiceInputButton } from '@/components/voice-input-button';
 import { ImageAttachmentPreview } from '@/components/image-attachment-preview';
 import { CreditsBanner } from '@/components/credits-banner';
 
@@ -269,11 +270,19 @@ export function ChatInput({
 
 							{/* Main input row */}
 							<div className="flex items-end gap-2 px-2.5 py-2">
-								{/* Left: attach */}
-								<div className="flex items-center pb-1">
+								{/* Left: attach + voice */}
+								<div className="flex items-center gap-0.5 pb-1">
 									<ImageUploadButton
 										onFilesSelected={onAddImages}
 										disabled={isProcessing}
+										className="touch-target"
+									/>
+									<VoiceInputButton
+										onTranscript={(text) =>
+											onMessageChange(newMessage.trim() ? `${newMessage} ${text}` : text)
+										}
+										disabled={isProcessing}
+										lang="vi-VN"
 										className="touch-target"
 									/>
 								</div>

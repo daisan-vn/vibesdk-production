@@ -63,6 +63,7 @@ import type{
 	CapabilitiesData,
 	VaultConfigResponse,
 	VaultStatusResponse,
+	CommitInfo,
 } from '@/api-types';
 import {
 	RateLimitExceededError,
@@ -800,6 +801,72 @@ class ApiClient {
 			return data.data?.routes?.length ? data.data.routes : ['/'];
 		} catch {
 			return ['/'];
+		}
+	}
+
+	/**
+	 * Fetch context-aware follow-up suggestions to show as composer chips (Lovable-style).
+	 * Best-effort: returns [] on any failure (chips simply don't render).
+	 */
+	async getFollowupSuggestions(agentId: string): Promise<string[]> {
+		try {
+			const headers = await this.getAuthHeaders();
+			const response = await fetch(`${this.baseUrl}/api/agent/${agentId}/suggestions`, {
+				method: 'GET',
+				headers,
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				return [];
+			}
+			const data: ApiResponse<{ suggestions: string[] }> = await response.json();
+			return data.data?.suggestions ?? [];
+		} catch {
+			return [];
+		}
+	}
+
+	/**
+	 * List restorable checkpoints (git commits), newest-first. Best-effort: [] on failure.
+	 */
+	async listCheckpoints(agentId: string): Promise<CommitInfo[]> {
+		try {
+			const headers = await this.getAuthHeaders();
+			const response = await fetch(`${this.baseUrl}/api/agent/${agentId}/checkpoints`, {
+				method: 'GET',
+				headers,
+				credentials: 'include',
+			});
+			if (!response.ok) {
+				return [];
+			}
+			const data: ApiResponse<{ checkpoints: CommitInfo[] }> = await response.json();
+			return data.data?.checkpoints ?? [];
+		} catch {
+			return [];
+		}
+	}
+
+	/**
+	 * Revert the project to a checkpoint and redeploy the preview.
+	 * Returns true on success.
+	 */
+	async revertCheckpoint(agentId: string, oid: string): Promise<boolean> {
+		try {
+			if (this.isCSRFTokenExpired()) {
+				await this.fetchCsrfToken();
+			}
+			const headers = await this.getAuthHeaders();
+			headers['content-type'] = 'application/json';
+			const response = await fetch(`${this.baseUrl}/api/agent/${agentId}/checkpoints/revert`, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify({ oid }),
+				credentials: 'include',
+			});
+			return response.ok;
+		} catch {
+			return false;
 		}
 	}
 
