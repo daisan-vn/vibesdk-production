@@ -2,12 +2,13 @@
 import { BaseController } from '../baseController';
 import { ApiResponse, ControllerResponse } from '../types';
 import type { RouteContext } from '../../types/route-context';
-import { getAgentStubLightweight } from '../../../agents';
+import { getAgentStubLightweight, cloneAgent } from '../../../agents';
 import { AppService } from '../../../database/services/AppService';
-import { 
-    AppDetailsData, 
+import {
+    AppDetailsData,
     AppStarToggleData,
     GitCloneTokenData,
+    ForkAppData,
 } from './types';
 import { AgentSummary } from '../../../agents/core/types';
 import { createLogger } from '../../../logger';
@@ -113,6 +114,48 @@ export class AppViewController extends BaseController {
         } catch (error) {
             this.logger.error('Error toggling star:', error);
             return AppViewController.createErrorResponse<AppStarToggleData>('Internal server error', 500);
+        }
+    }
+
+    /**
+     * Fork (remix) an app into a new session owned by the current user.
+     * Security: only public apps (or the owner's own app) may be forked.
+     * POST /api/apps/:id/fork
+     */
+    static async forkApp(_request: Request, env: Env, _ctx: ExecutionContext, context: RouteContext): Promise<ControllerResponse<ApiResponse<ForkAppData>>> {
+        try {
+            const user = context.user!;
+            const appId = context.pathParams.id;
+            if (!appId) {
+                return AppViewController.createErrorResponse<ForkAppData>('App ID is required', 400);
+            }
+
+            const appService = new AppService(env);
+            const original = await appService.getAppDetails(appId, user.id);
+            if (!original) {
+                return AppViewController.createErrorResponse<ForkAppData>('App not found', 404);
+            }
+            // Only public apps or the user's own app may be forked.
+            if (original.visibility !== 'public' && original.userId !== user.id) {
+                return AppViewController.createErrorResponse<ForkAppData>('App not found', 404);
+            }
+
+            try {
+                const { newAgentId } = await cloneAgent(env, appId);
+                this.logger.info(`Cloned agent state ${appId} -> ${newAgentId}`);
+                const forkedApp = await appService.createForkedApp(original, newAgentId, user.id);
+                const responseData: ForkAppData = {
+                    forkedAppId: forkedApp.id,
+                    message: 'App forked successfully',
+                };
+                return AppViewController.createSuccessResponse(responseData);
+            } catch (error) {
+                this.logger.error('Failed to duplicate agent state:', error);
+                return AppViewController.createErrorResponse<ForkAppData>('Failed to duplicate agent state', 500);
+            }
+        } catch (error) {
+            this.logger.error('Error forking app:', error);
+            return AppViewController.createErrorResponse<ForkAppData>('Internal server error', 500);
         }
     }
 

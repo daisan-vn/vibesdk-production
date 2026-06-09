@@ -24,6 +24,8 @@ import {
 	Trash2,
 	Github,
 	GitBranch,
+	GitFork,
+	Share2,
 } from 'lucide-react';
 import { MonacoEditor } from '@/components/monaco-editor/monaco-editor';
 import { getFileType } from '@/utils/string';
@@ -182,6 +184,30 @@ export default function AppView() {
 	// Action configuration for reusability
 	const actionConfigs: Record<string, ActionConfig> = useMemo(
 		() => ({
+			fork: {
+				action: 'fork',
+				context: 'to remix this app',
+				handler: async () => {
+					if (!app) return;
+					const response = await apiClient.forkApp(app.id);
+					if (response.success && response.data) {
+						toast.success(
+							response.data.message || 'App remixed successfully!',
+						);
+						appEvents.emitAppCreated(response.data.forkedAppId, {
+							title: `${app.title} (Remix)`,
+							description: app.description || undefined,
+							isForked: true,
+						});
+						navigate(`/chat/${response.data.forkedAppId}`);
+					} else {
+						throw new Error(
+							response.error?.message || 'Failed to remix app',
+						);
+					}
+				},
+				errorMessage: 'Failed to remix app',
+			},
 			favorite: {
 				action: 'favorite',
 				context: 'to bookmark apps',
@@ -253,7 +279,7 @@ export default function AppView() {
 			// 	errorMessage: 'Failed to remix app',
 			// },
 		}),
-		[app],
+		[app, navigate],
 	);
 
 	// Reusable authenticated action handler
@@ -301,6 +327,10 @@ export default function AppView() {
 	);
 	const handleStar = useMemo(
 		() => createAuthenticatedHandler('star'),
+		[createAuthenticatedHandler],
+	);
+	const handleFork = useMemo(
+		() => createAuthenticatedHandler('fork'),
 		[createAuthenticatedHandler],
 	);
 	// const handleFork = useMemo(
@@ -611,7 +641,37 @@ export default function AppView() {
 									{isStarred ? 'Starred' : 'Star'}
 								</Button>
 
-								{/* Git Clone Button */}
+								{/* Remix Button */}
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={handleFork}
+										className="gap-2 text-text-primary"
+									>
+										<GitFork className="h-4 w-4" />
+										Remix
+									</Button>
+
+									{/* Share Button */}
+									<Button
+										variant="outline"
+										size="sm"
+										onClick={() => {
+											const shareUrl = `${window.location.origin}/app/${app.id}`;
+											navigator.clipboard?.writeText(shareUrl);
+											toast.success(
+												app.visibility === 'public'
+													? 'Đã copy link chia sẻ'
+													: 'Đã copy link (app đang Private — đặt Public để người khác xem được)',
+											);
+										}}
+										className="gap-2 text-text-primary"
+									>
+										<Share2 className="h-4 w-4" />
+										Share
+									</Button>
+
+									{/* Git Clone Button */}
 								<Button
 									variant="outline"
 									size="sm"
