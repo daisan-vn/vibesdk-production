@@ -480,10 +480,11 @@ export class AbortError extends InferError {
 }
 
 const claude_thinking_budget_tokens = {
-    medium: 8000,
-    high: 16000,
-    low: 4000,
-    minimal: 1000,
+    // Speed tune: trimmed thinking budgets to cut latency (1024 = Anthropic min).
+    minimal: 1024,
+    low: 1536,
+    medium: 3000,
+    high: 6000,
 };
 
 export type InferResponseObject<OutputSchema extends z.AnyZodObject> = {
