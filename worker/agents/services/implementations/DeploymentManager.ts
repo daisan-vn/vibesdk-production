@@ -542,7 +542,9 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
         }
 
         const results = await this.createNewInstance();
-        if (!results || !results.runId || !results.previewURL) {
+        // Require only a runId: a missing previewURL is expected on workers.dev (no
+        // wildcard preview domain) and must not block lint/deploy on a live instance.
+        if (!results || !results.runId) {
             throw new Error('Failed to create new deployment');
         }
 
@@ -637,11 +639,11 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
             previewURL: createResponse.previewURL
         });
 
-        if (createResponse.runId && createResponse.previewURL) {
-            return createResponse;
-        }
-
-        throw new Error(`Failed to create sandbox instance: ${createResponse?.error || 'Unknown error'}`);
+        // A missing previewURL is NOT fatal: on a workers.dev deploy (no wildcard
+        // custom domain and the tunnel may not have produced a URL yet) the instance
+        // still exists and is valid for static analysis and Cloudflare deploy. runId
+        // is already guaranteed non-empty by the check above.
+        return createResponse;
     }
 
     /**

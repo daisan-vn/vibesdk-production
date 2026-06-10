@@ -980,22 +980,51 @@ export class SandboxSdkClient extends BaseSandboxService {
                         const processId = await this.startDevServer(instanceId, initCommand, allocatedPort);
                         this.logger.info('Instance created successfully', { instanceId, processId, port: allocatedPort });
 
-                        const previewResult = await sandbox.exposePort(allocatedPort, { hostname: getPreviewDomain(env) });
-                        let previewURL = previewResult.url;
-                        if (!isDev(env)) {
-                            const previewDomain = getPreviewDomain(env);
-                            if (previewDomain) {
-                                previewURL = previewURL.replace(env.CUSTOM_DOMAIN, previewDomain);
+                        // Expose a public preview URL. Best-effort: the container and dev
+                        // server are already running, which is all that static analysis and
+                        // Cloudflare deploy need, so a preview failure must never abort setup.
+                        // - The sandbox SDK's exposePort needs a custom domain with wildcard
+                        //   subdomains; it rejects empty hostnames and .workers.dev
+                        //   ("Failed to construct preview URL" / CustomDomainRequiredError), so
+                        //   only call it when a usable custom domain is configured.
+                        // - Otherwise (e.g. a workers.dev deploy) rely on a cloudflared quick
+                        //   tunnel (USE_TUNNEL_FOR_PREVIEW) for a trycloudflare.com preview URL.
+                        let previewURL = '';
+                        const previewDomain = getPreviewDomain(env);
+                        const canExposeViaDomain = !!previewDomain && previewDomain.trim() !== '' && !previewDomain.endsWith('.workers.dev');
+                        if (canExposeViaDomain) {
+                            try {
+                                const previewResult = await sandbox.exposePort(allocatedPort, { hostname: previewDomain });
+                                previewURL = previewResult.url;
+                                if (!isDev(env) && env.CUSTOM_DOMAIN) {
+                                    previewURL = previewURL.replace(env.CUSTOM_DOMAIN, previewDomain);
+                                }
+                            } catch (error) {
+                                this.logger.warn('Failed to expose preview port; continuing without a direct preview URL', {
+                                    instanceId,
+                                    allocatedPort,
+                                    error: error instanceof Error ? error.message : String(error),
+                                });
                             }
                         }
 
                         let tunnelURL = '';
                         if (isDev(env) || env.USE_TUNNEL_FOR_PREVIEW) {
                             this.logger.info('Starting cloudflared tunnel', { instanceId, allocatedPort });
-                            tunnelURL = await this.startCloudflaredTunnel(instanceId, allocatedPort);
+                            try {
+                                tunnelURL = await this.startCloudflaredTunnel(instanceId, allocatedPort);
+                            } catch (error) {
+                                this.logger.warn('Failed to start cloudflared tunnel; preview may be unavailable', {
+                                    instanceId,
+                                    error: error instanceof Error ? error.message : String(error),
+                                });
+                            }
                         }
 
-                        this.logger.info('Preview URL exposed', { instanceId, previewURL, tunnelURL, allocatedPort });
+                        // Fall back to the tunnel URL when no domain-based preview was produced.
+                        if (!previewURL) previewURL = tunnelURL;
+
+                        this.logger.info('Preview URL resolved', { instanceId, previewURL, tunnelURL, allocatedPort });
                         return { previewURL, tunnelURL, processId, allocatedPort };
                     } catch (error) {
                         lastStartError = error;

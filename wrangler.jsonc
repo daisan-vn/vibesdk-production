@@ -178,7 +178,10 @@
         },
         "CUSTOM_DOMAIN": "",
         "CUSTOM_PREVIEW_DOMAIN": "",
-        "USE_TUNNEL_FOR_PREVIEW": "",
+        // workers.dev has no wildcard subdomains for sandbox port-proxying, so live
+        // previews go through a cloudflared quick tunnel (trycloudflare.com) instead.
+        // The sandbox container ships cloudflared (see SandboxDockerfile).
+        "USE_TUNNEL_FOR_PREVIEW": "true",
         "MAX_SANDBOX_INSTANCES": "10",
         "SANDBOX_INSTANCE_TYPE": "standard-3"
     },
