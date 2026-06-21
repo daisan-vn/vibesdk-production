@@ -11,7 +11,8 @@ import { commonSchemas } from '../../../utils/inputValidator';
  */
 export const loginSchema = z.object({
   email: commonSchemas.email,
-  password: z.string().min(1, 'Password is required')
+  password: z.string().min(1, 'Password is required'),
+  turnstileToken: z.string().optional()
 });
 
 export type LoginRequest = z.infer<typeof loginSchema>;
@@ -22,7 +23,8 @@ export type LoginRequest = z.infer<typeof loginSchema>;
 export const registerSchema = z.object({
   email: commonSchemas.email,
   password: commonSchemas.password,
-  name: z.string().min(2, 'Name must be at least 2 characters').max(100).optional()
+  name: z.string().min(2, 'Name must be at least 2 characters').max(100).optional(),
+  turnstileToken: z.string().optional()
 });
 
 export type RegisterRequest = z.infer<typeof registerSchema>;

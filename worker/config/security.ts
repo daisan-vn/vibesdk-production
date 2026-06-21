@@ -160,6 +160,7 @@ export function getSecureHeadersConfig(env: Env): SecureHeadersConfig {
                 "'self'",
                 // Allow inline scripts with nonce (Hono will add nonce automatically)
                 "'strict-dynamic'",
+                "https://challenges.cloudflare.com", // Cloudflare Turnstile
                 // Development only - for hot reload
                 ...(isDevelopment ? ["'unsafe-eval'"] : [])
             ],
@@ -189,9 +190,10 @@ export function getSecureHeadersConfig(env: Env): SecureHeadersConfig {
                 `wss://${env.CUSTOM_DOMAIN || '*'}`,
                 // API endpoints
                 "https://api.github.com",
-                "https://api.cloudflare.com"
+                "https://api.cloudflare.com",
+                "https://challenges.cloudflare.com"
             ],
-            frameSrc: ["'none'"],
+            frameSrc: ["https://challenges.cloudflare.com"], // Cloudflare Turnstile
             objectSrc: ["'none'"],
             mediaSrc: ["'self'"],
             workerSrc: ["'self'", "blob:"],

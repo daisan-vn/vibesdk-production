@@ -3,7 +3,7 @@
  * Supports both OAuth and email/password authentication with backward compatibility
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
 	ENABLE_DEMO_WITHOUT_AUTH,
 	DEMO_ACCESS_TOKEN,
@@ -32,12 +32,14 @@ interface LoginModalProps {
 	onEmailLogin?: (credentials: {
 		email: string;
 		password: string;
+		turnstileToken?: string;
 	}) => Promise<void>;
 	onOAuthLogin?: (provider: 'google' | 'github', redirectUrl?: string) => void;
 	onRegister?: (data: {
 		email: string;
 		password: string;
 		name?: string;
+		turnstileToken?: string;
 	}) => Promise<void>;
 	error?: string | null;
 	onClearError?: () => void;
@@ -61,7 +63,7 @@ export function LoginModal({
 	actionContext,
 	showCloseButton = true,
 }: LoginModalProps) {
-	const { authProviders, hasOAuth, requiresEmailAuth } = useAuth();
+	const { authProviders, hasOAuth, requiresEmailAuth, turnstileSiteKey } = useAuth();
 	const [mode, setMode] = useState<AuthMode>('login');
 	const [showPassword, setShowPassword] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
@@ -84,6 +86,9 @@ export function LoginModal({
 	const [password, setPassword] = useState('');
 	const [name, setName] = useState('');
 	const [confirmPassword, setConfirmPassword] = useState('');
+	const [turnstileToken, setTurnstileToken] = useState('');
+	const turnstileRef = useRef<HTMLDivElement>(null);
+	const widgetIdRef = useRef<string | null>(null);
 
 	// Validation errors
 	const [validationErrors, setValidationErrors] = useState<
@@ -96,6 +101,50 @@ export function LoginModal({
 	const showGitHub = authProviders?.github && hasOAuth;
 	const showGoogle = authProviders?.google && hasOAuth;
 
+	// Render Cloudflare Turnstile widget when a site key is configured
+	useEffect(() => {
+		if (!isOpen || !turnstileSiteKey || !hasEmailAuth) {
+			return;
+		}
+		let cancelled = false;
+		const renderWidget = () => {
+			const ts = (window as any).turnstile;
+			if (cancelled || !ts || !turnstileRef.current || widgetIdRef.current) {
+				return;
+			}
+			widgetIdRef.current = ts.render(turnstileRef.current, {
+				sitekey: turnstileSiteKey,
+				callback: (token: string) => setTurnstileToken(token),
+				'expired-callback': () => setTurnstileToken(''),
+				'error-callback': () => setTurnstileToken(''),
+			});
+		};
+		let poll: ReturnType<typeof setInterval> | undefined;
+		if ((window as any).turnstile) {
+			renderWidget();
+		} else {
+			if (!document.getElementById('cf-turnstile-script')) {
+				const s = document.createElement('script');
+				s.id = 'cf-turnstile-script';
+				s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+				s.async = true;
+				s.defer = true;
+				document.head.appendChild(s);
+			}
+			poll = setInterval(() => {
+				if ((window as any).turnstile) {
+					if (poll) clearInterval(poll);
+					renderWidget();
+				}
+			}, 200);
+		}
+		return () => {
+			cancelled = true;
+			if (poll) clearInterval(poll);
+			widgetIdRef.current = null;
+		};
+	}, [isOpen, turnstileSiteKey, hasEmailAuth]);
+
 	const resetForm = () => {
 		setEmail('');
 		setPassword('');
@@ -103,6 +152,10 @@ export function LoginModal({
 		setConfirmPassword('');
 		setValidationErrors({});
 		setShowPassword(false);
+		setTurnstileToken('');
+		if (widgetIdRef.current && (window as any).turnstile) {
+			try { (window as any).turnstile.reset(widgetIdRef.current); } catch { /* noop */ }
+		}
 		if (onClearError) onClearError();
 	};
 
@@ -160,12 +213,17 @@ export function LoginModal({
 
 		if (!validateForm()) return;
 
+		if (turnstileSiteKey && !turnstileToken) {
+			setValidationErrors((prev) => ({ ...prev, turnstile: 'Vui lòng hoàn tất xác thực captcha.' }));
+			return;
+		}
+
 		setIsLoading(true);
 		try {
 			if (mode === 'login' && onEmailLogin) {
-				await onEmailLogin({ email, password });
+				await onEmailLogin({ email, password, turnstileToken });
 			} else if (mode === 'register' && onRegister) {
-				await onRegister({ email, password, name: name.trim() });
+				await onRegister({ email, password, name: name.trim(), turnstileToken });
 			}
 			// Don't auto-close here - let the parent handle success/error
 		} catch (err) {
@@ -422,6 +480,15 @@ export function LoginModal({
 												/>
 												{validationErrors.confirmPassword && (
 													<p className="mt-1 text-sm text-destructive">{validationErrors.confirmPassword}</p>
+												)}
+											</div>
+										)}
+
+										{turnstileSiteKey && (
+											<div className="flex flex-col items-center gap-1">
+												<div ref={turnstileRef} className="flex justify-center" />
+												{validationErrors.turnstile && (
+													<p className="text-sm text-destructive">{validationErrors.turnstile}</p>
 												)}
 											</div>
 										)}

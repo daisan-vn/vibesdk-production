@@ -285,6 +285,7 @@ export interface AuthProvidersResponseData {
   };
   hasOAuth: boolean;
   requiresEmailAuth: boolean;
+  turnstileSiteKey?: string | null;
   csrfToken?: string;
   csrfExpiresIn?: number;
 }

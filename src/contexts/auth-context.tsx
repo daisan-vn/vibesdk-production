@@ -32,10 +32,11 @@ interface AuthContextType {
   } | null;
   hasOAuth: boolean;
   requiresEmailAuth: boolean;
+  turnstileSiteKey: string | null;
 
   login: (provider: 'google' | 'github', redirectUrl?: string) => void;
-  loginWithEmail: (credentials: { email: string; password: string }) => Promise<void>;
-  register: (data: { email: string; password: string; name?: string }) => Promise<void>;
+  loginWithEmail: (credentials: { email: string; password: string; turnstileToken?: string }) => Promise<void>;
+  register: (data: { email: string; password: string; name?: string; turnstileToken?: string }) => Promise<void>;
 
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -78,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authProviders, setAuthProviders] = useState<{ google: boolean; github: boolean; email: boolean; } | null>(null);
   const [hasOAuth, setHasOAuth] = useState<boolean>(false);
   const [requiresEmailAuth, setRequiresEmailAuth] = useState<boolean>(true);
+  const [turnstileSiteKey, setTurnstileSiteKey] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useSentryUser(user);
@@ -128,6 +130,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAuthProviders(response.data.providers);
         setHasOAuth(response.data.hasOAuth);
         setRequiresEmailAuth(response.data.requiresEmailAuth);
+        setTurnstileSiteKey(response.data.turnstileSiteKey ?? null);
       }
     } catch (err) {
       console.warn('Failed to fetch auth providers:', err);
@@ -213,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     window.location.href = `/api/auth/oauth/${provider}?redirect=${encodeURIComponent(target)}`;
   }, []);
 
-  const loginWithEmail = useCallback(async (credentials: { email: string; password: string }) => {
+  const loginWithEmail = useCallback(async (credentials: { email: string; password: string; turnstileToken?: string }) => {
     setError(null);
     setIsLoading(true);
 
@@ -248,7 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [navigate, setupTokenRefresh, getIntendedUrl, clearIntendedUrl]);
 
-  const register = useCallback(async (data: { email: string; password: string; name?: string }) => {
+  const register = useCallback(async (data: { email: string; password: string; name?: string; turnstileToken?: string }) => {
     setError(null);
     setIsLoading(true);
 
@@ -322,6 +325,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     authProviders,
     hasOAuth,
     requiresEmailAuth,
+    turnstileSiteKey,
     login,
     loginWithEmail,
     register,

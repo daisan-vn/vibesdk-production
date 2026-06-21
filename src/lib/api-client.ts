@@ -1491,6 +1491,7 @@ class ApiClient {
 	async loginWithEmail(credentials: {
 		email: string;
 		password: string;
+		turnstileToken?: string;
 	}): Promise<ApiResponse<LoginResponseData>> {
 		return this.request<LoginResponseData>('/api/auth/login', {
 			method: 'POST',
@@ -1505,6 +1506,7 @@ class ApiClient {
 		email: string;
 		password: string;
 		name?: string;
+		turnstileToken?: string;
 	}): Promise<ApiResponse<RegisterResponseData>> {
 		return this.request<RegisterResponseData>('/api/auth/register', {
 			method: 'POST',

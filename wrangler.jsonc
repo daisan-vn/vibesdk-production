@@ -159,7 +159,7 @@
         "ALLOWED_EMAIL": "admin@daisan.vn,nhamphongdaijsc@gmail.com,it@daisan.vn",
         "DISPATCH_NAMESPACE": "vibesdk-default-namespace",
         "ENABLE_READ_REPLICAS": "false",
-        "CLOUDFLARE_AI_GATEWAY": "vibesdk-gateway",
+        "CLOUDFLARE_AI_GATEWAY": "daisan-gw",
         "DAISAN_SPECIALISTS_ENABLED": "true",
         "DAISAN_CLARIFY_ENABLED": "true",
         "PLATFORM_CAPABILITIES": {

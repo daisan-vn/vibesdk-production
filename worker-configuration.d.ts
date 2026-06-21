@@ -56,6 +56,8 @@ declare namespace Cloudflare {
 		SENTRY_DSN: string;
 		USE_TUNNEL_FOR_PREVIEW: string;
 		USE_CLOUDFLARE_IMAGES: string;
+		TURNSTILE_SECRET_KEY: string;
+		TURNSTILE_SITE_KEY: string;
 		CodeGenObject: DurableObjectNamespace<import("./worker/index").CodeGeneratorAgent>;
 		Sandbox: DurableObjectNamespace<import("./worker/index").UserAppSandboxService>;
 		DORateLimitStore: DurableObjectNamespace<import("./worker/index").DORateLimitStore>;

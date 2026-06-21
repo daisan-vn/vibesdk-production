@@ -21,6 +21,7 @@ import {
 	extractSessionId,
 	isEmailAllowed
 } from '../../../utils/authUtils';
+import { verifyTurnstileToken } from '../../../utils/turnstile';
 import { JWTUtils } from '../../../utils/jwtUtils';
 import { RouteContext } from '../../types/route-context';
 import { authMiddleware } from '../../../middleware/auth/auth';
@@ -60,6 +61,18 @@ export class AuthController extends BaseController {
             }
 
             const validatedData = registerSchema.parse(bodyResult.data);
+
+            // Bot protection: verify Turnstile captcha when configured
+            if (env.TURNSTILE_SECRET_KEY) {
+                const captchaOk = await verifyTurnstileToken(
+                    validatedData.turnstileToken,
+                    env.TURNSTILE_SECRET_KEY,
+                    request.headers.get('CF-Connecting-IP') || undefined,
+                );
+                if (!captchaOk) {
+                    return AuthController.createErrorResponse('Captcha verification failed. Please try again.', 403);
+                }
+            }
 
             if (!isEmailAllowed(env.ALLOWED_EMAIL, validatedData.email)) {
                 return AuthController.createErrorResponse(
@@ -115,6 +128,18 @@ export class AuthController extends BaseController {
             }
 
             const validatedData = loginSchema.parse(bodyResult.data);
+
+            // Bot protection: verify Turnstile captcha when configured
+            if (env.TURNSTILE_SECRET_KEY) {
+                const captchaOk = await verifyTurnstileToken(
+                    validatedData.turnstileToken,
+                    env.TURNSTILE_SECRET_KEY,
+                    request.headers.get('CF-Connecting-IP') || undefined,
+                );
+                if (!captchaOk) {
+                    return AuthController.createErrorResponse('Captcha verification failed. Please try again.', 403);
+                }
+            }
 
             if (!isEmailAllowed(env.ALLOWED_EMAIL, validatedData.email)) {
                 return AuthController.createErrorResponse(
@@ -755,6 +780,7 @@ export class AuthController extends BaseController {
                 providers,
                 hasOAuth: providers.google || providers.github,
                 requiresEmailAuth: !providers.google && !providers.github,
+                turnstileSiteKey: env.TURNSTILE_SITE_KEY || null,
                 csrfToken,
                 csrfExpiresIn: Math.floor(CsrfService.defaults.tokenTTL / 1000)
             });
