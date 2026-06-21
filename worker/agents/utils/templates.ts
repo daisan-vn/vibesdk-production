@@ -21,7 +21,7 @@ const stripAnsi = (str: string) =>
 const LOG_MESSAGE_BOUNDARY = /\\n(?=\\[[A-Z][^\\]]*\\])/g;
 
 const emitLog = (level: "info" | "warn" | "error", rawMessage: string) => {
-  const cleaned = stripAnsi(rawMessage).replace(/\r\n/g, "\n");
+  const cleaned = stripAnsi(rawMessage).replace(/\\r\\n/g, "\\n");
   const parts = cleaned
     .split(LOG_MESSAGE_BOUNDARY)
     .map((part) => part.trimEnd())
