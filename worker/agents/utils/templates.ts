@@ -122,7 +122,7 @@ const SCRATCH_PACKAGE_JSON = `{
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.9.4",
+    "@cloudflare/vite-plugin": "1.9.4",
     "@cloudflare/workers-types": "^4.20250807.0",
     "@types/node": "^22.15.3",
     "@types/react": "^18.3.1",
