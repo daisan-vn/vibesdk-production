@@ -156,10 +156,11 @@
     // made `wrangler deploy` fail at the routes step.
 	"vars": {
         "TEMPLATES_REPOSITORY": "https://github.com/cloudflare/vibesdk-templates",
-        "ALLOWED_EMAIL": "admin@daisan.vn,nhamphongdaijsc@gmail.com,it@daisan.vn",
+        "ALLOWED_EMAIL": "",
         "DISPATCH_NAMESPACE": "vibesdk-default-namespace",
         "ENABLE_READ_REPLICAS": "false",
         "CLOUDFLARE_AI_GATEWAY": "daisan-gw",
+        "TURNSTILE_SITE_KEY": "0x4AAAAAADonkMdMN2CTihM5",
         "DAISAN_SPECIALISTS_ENABLED": "true",
         "DAISAN_CLARIFY_ENABLED": "true",
         "PLATFORM_CAPABILITIES": {
