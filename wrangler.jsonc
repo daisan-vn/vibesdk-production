@@ -177,8 +177,8 @@
             },
             "version": "1.0.0"
         },
-        "CUSTOM_DOMAIN": "",
-        "CUSTOM_PREVIEW_DOMAIN": "",
+        "CUSTOM_DOMAIN": "daisan.ai",
+        "CUSTOM_PREVIEW_DOMAIN": "daisan.app",
         // workers.dev has no wildcard subdomains for sandbox port-proxying, so live
         // previews go through a cloudflared quick tunnel (trycloudflare.com) instead.
         // The sandbox container ships cloudflared (see SandboxDockerfile).
@@ -187,5 +187,8 @@
         "SANDBOX_INSTANCE_TYPE": "standard-3"
     },
 	"workers_dev": true,
-	"preview_urls": true
+	"preview_urls": true,
+	"routes": [
+		{ "pattern": "*.daisan.app/*", "zone_name": "daisan.app" }
+	]
 }
