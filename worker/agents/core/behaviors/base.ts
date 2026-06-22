@@ -353,7 +353,7 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
         return {
             metadata: this.state.metadata,
             enableFastSmartCodeFix: true,   // Quality: static typecheck/lint auto-fix after each phase.
-            enableRealtimeCodeFix: true,    // Quality: realtime per-file auto-fix (Lovable-style). Higher AI cost.
+            enableRealtimeCodeFix: false,   // Reverted: costly per-file fix, unproven; keep fast-fix only.
             abortSignal: controller.signal,
             userModelConfigs: this.getUserModelConfigs(),
             runtimeOverrides: this.getRuntimeOverrides(),

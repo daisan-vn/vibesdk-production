@@ -399,7 +399,7 @@ export class CodingAgentController extends BaseController {
                 },
                 userModelConfigs,
                 runtimeOverrides,
-                enableRealtimeCodeFix: true, // Quality: realtime per-file auto-fix (Lovable-style). Higher AI cost — toggle back to false to economize.
+                enableRealtimeCodeFix: false, // Reverted: per-file realtime fix is costly and didn't prevent runtime errors (e.g. react-router misuse); keep only the cheaper fast-fix.
                 enableFastSmartCodeFix: true, // Quality: static typecheck/lint auto-fix after each phase.
                 shouldUseUserKey: limitResult.shouldUseByok, // Use BYOK if needed
                 userApiToken: effectiveUserToken, // Encrypted blob from HttpOnly cookie (for BYOK)
