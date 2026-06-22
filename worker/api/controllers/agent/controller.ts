@@ -399,8 +399,8 @@ export class CodingAgentController extends BaseController {
                 },
                 userModelConfigs,
                 runtimeOverrides,
-                enableRealtimeCodeFix: false, // This costs us too much, so disabled it for now
-                enableFastSmartCodeFix: false,
+                enableRealtimeCodeFix: true, // Quality: realtime per-file auto-fix (Lovable-style). Higher AI cost — toggle back to false to economize.
+                enableFastSmartCodeFix: true, // Quality: static typecheck/lint auto-fix after each phase.
                 shouldUseUserKey: limitResult.shouldUseByok, // Use BYOK if needed
                 userApiToken: effectiveUserToken, // Encrypted blob from HttpOnly cookie (for BYOK)
                 userGateway, // User's AI Gateway for BYOK
