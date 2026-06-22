@@ -1928,7 +1928,47 @@ export class SandboxSdkClient extends BaseSandboxService {
             } catch (error) {
                 this.logger.error('Failed to process additional worker modules:', error);
             }
-            
+
+            // FIX (DO-backend): worker/index.ts loads routes via a runtime dynamic import of
+            // './user-routes' (a computed @vite-ignore specifier) that no bundler emits, so the
+            // route module never ships and /api/* fails with: No such module "user-routes".
+            // Compile it from source into a self-contained ESM module and add it to the uploaded
+            // module set, named to match the import. Additive + non-fatal: any failure here
+            // leaves the deployment exactly as before.
+            try {
+                const routeModuleCandidates = [
+                    { src: 'worker/user-routes.ts', base: 'user-routes' },
+                    { src: 'worker/userRoutes.ts', base: 'userRoutes' },
+                ];
+                for (const { src, base } of routeModuleCandidates) {
+                    const exists = await this.safeSandboxExec(`test -f ${instanceId}/${src} && echo y || echo n`);
+                    if (exists.exitCode !== 0 || exists.stdout.trim() !== 'y') {
+                        continue;
+                    }
+                    const builtRel = `${instanceId}/dist/${base}.js`;
+                    // NOTE: do NOT `cd` into the instance dir — the sandbox default session has a
+                    // PERSISTENT CWD, so a `cd` leaks into later commands (e.g. the base64 read) and
+                    // doubles the instanceId path. Use ${instanceId}/-relative paths throughout.
+                    const esbuildCmd = `bunx esbuild ${instanceId}/${src} --bundle --format=esm --conditions=workerd '--external:cloudflare:*' '--external:node:*' --outfile=${instanceId}/dist/${base}.js`;
+                    const built = await this.safeSandboxExec(esbuildCmd, { timeout: 120000 });
+                    if (built.exitCode !== 0) {
+                        this.logger.warn('Failed to compile route module (non-fatal)', { base, stderr: built.stderr });
+                        continue;
+                    }
+                    const routeModuleContent = (await this.readFileAsBase64Buffer(builtRel)).toString('utf8');
+                    if (!additionalModules) {
+                        additionalModules = new Map<string, string>();
+                    }
+                    // Upload under both names the runtime import('./<base>') may resolve to.
+                    additionalModules.set(base, routeModuleContent);
+                    additionalModules.set(`${base}.js`, routeModuleContent);
+                    this.logger.info('Added route module for dispatch deploy', { base, sizeKB: (routeModuleContent.length / 1024).toFixed(2) });
+                    break;
+                }
+            } catch (routeModuleError) {
+                this.logger.warn('Route-module compile step failed (non-fatal):', routeModuleError);
+            }
+
             // Step 4: Check for static assets and process them
             const assetsPath = `${instanceId}/dist/client`;
             let assetsManifest: Record<string, { hash: string; size: number }> | undefined;
