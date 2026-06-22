@@ -3,12 +3,13 @@
  * Provides OAuth + Email/Password authentication with enhanced UI
  */
 
-import { useState } from 'react';
-import { LogIn, LogOut, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { LogIn, LogOut, Settings, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import clsx from 'clsx';
 import { useAuth } from '../../contexts/auth-context';
+import { apiClient } from '../../lib/api-client';
 import { LoginModal } from './login-modal';
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar';
 import {
@@ -41,6 +42,24 @@ export function AuthButton({ className }: AuthButtonProps) {
 
 	const navigate = useNavigate();
 	const [showLoginModal, setShowLoginModal] = useState(false);
+	const [isAdmin, setIsAdmin] = useState(false);
+
+	useEffect(() => {
+		if (!isAuthenticated) {
+			setIsAdmin(false);
+			return;
+		}
+		let cancelled = false;
+		apiClient
+			.adminCheck()
+			.then((r) => {
+				if (!cancelled) setIsAdmin(!!r.data?.isAdmin);
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [isAuthenticated]);
 
 	if (isLoading) {
 		return <Skeleton className="w-10 h-10 rounded-full" />;
@@ -159,6 +178,15 @@ export function AuthButton({ className }: AuthButtonProps) {
 						</DropdownMenuLabel>
 
 						<DropdownMenuGroup>
+							{isAdmin && (
+								<DropdownMenuItem
+									onClick={() => navigate('/admin')}
+									className="cursor-pointer"
+								>
+									<Shield className="mr-1 h-4 w-4" />
+									Admin
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuItem
 								onClick={() => navigate('/settings')}
 								className="cursor-pointer"
