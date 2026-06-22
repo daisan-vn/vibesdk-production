@@ -21,6 +21,24 @@ export function buildUserWorkerUrl(env: Env, deploymentId: string): string {
 }
 
 /**
+ * Sanitize a name into a DNS / Cloudflare-Worker-safe label: lowercase, only
+ * [a-z0-9-], no leading/trailing/duplicate hyphens, max 63 chars. The deployed
+ * worker's script name AND its <name>.<previewDomain> subdomain are derived from
+ * the same value and must match, so a generated project name containing nanoid's
+ * '_' (or uppercase) would otherwise produce an invalid hostname.
+ */
+export function sanitizeWorkerName(name: string): string {
+    const cleaned = (name || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9-]+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 63)
+        .replace(/-+$/g, '');
+    return cleaned || 'app';
+}
+
+/**
  * Migrate a stored preview URL to the current domain.
  * Extracts subdomain from old URL and rebuilds with current getPreviewDomain().
  * Used to handle domain changes without invalidating existing sandbox instances.

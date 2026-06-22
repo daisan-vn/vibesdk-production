@@ -43,7 +43,7 @@ import { generateId } from '../../utils/idGenerator';
 import { ResourceProvisioner } from './resourceProvisioner';
 import { TemplateParser } from './templateParser';
 import { ResourceProvisioningResult } from './types';
-import { getPreviewDomain, resolvePreviewUrl } from '../../utils/urls';
+import { getPreviewDomain, resolvePreviewUrl, sanitizeWorkerName } from '../../utils/urls';
 import { isDev } from 'worker/utils/envs'
 import { FileTreeBuilder } from './fileTreeBuilder';
 import { DeploymentTarget } from 'worker/agents/core/types';
@@ -2049,10 +2049,14 @@ export class SandboxSdkClient extends BaseSandboxService {
                 this.logger.info('No static assets found, deploying worker only');
             }
             
-            // Step 5: Override config for dispatch deployment
+            // Step 5: Override config for dispatch deployment.
+            // Sanitize the script name to a DNS-safe label so the
+            // <name>.<previewDomain> subdomain is a valid hostname — nanoid-based
+            // project names can contain '_', which is invalid in hostnames.
+            const safeName = sanitizeWorkerName(projectName);
             const dispatchConfig = {
                 ...config,
-                name: config.name
+                name: safeName
             };
         
             
@@ -2097,8 +2101,8 @@ export class SandboxSdkClient extends BaseSandboxService {
             }
             
             // Step 8: Determine deployment URL
-            const deployedUrl = `${this.getProtocolForHost()}://${projectName}.${getPreviewDomain(env)}`;
-            const deploymentId = projectName;
+            const deployedUrl = `${this.getProtocolForHost()}://${safeName}.${getPreviewDomain(env)}`;
+            const deploymentId = safeName;
             
             this.logger.info('Deployment successful', { 
                 instanceId,
