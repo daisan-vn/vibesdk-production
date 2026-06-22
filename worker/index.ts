@@ -8,6 +8,7 @@ import { getPreviewDomain } from './utils/urls';
 import { proxyToAiGateway } from './services/aigateway-proxy/controller';
 import { isOriginAllowed } from './config/security';
 import { proxyToSandbox } from './services/sandbox/request-handler';
+import { injectVisualEditBridge } from './services/preview/visualEditBridge';
 import { handleGitProtocolRequest, isGitProtocolRequest } from './api/handlers/git-protocol';
 import { getAgentStub } from './agents';
 
@@ -92,6 +93,21 @@ async function handleUserAppRequest(request: Request, env: Env): Promise<Respons
         headers.append('Vary', 'Origin');
 		headers.set('Access-Control-Expose-Headers', 'X-Preview-Type');
 		
+		// Inject the visual-edit bridge into HTML previews so the studio's
+		// click-to-edit (useVisualEdit) has its in-page counterpart. HTML only;
+		// other assets (JS/CSS/API) stream through untouched.
+		const sandboxContentType = sandboxResponse.headers.get('Content-Type') || '';
+		if (sandboxContentType.includes('text/html')) {
+			const html = await sandboxResponse.text();
+			headers.delete('Content-Length');
+			headers.delete('Content-Encoding');
+			return new Response(injectVisualEditBridge(html), {
+				status: sandboxResponse.status,
+				statusText: sandboxResponse.statusText,
+				headers,
+			});
+		}
+
 		return new Response(sandboxResponse.body, {
 			status: sandboxResponse.status,
 			statusText: sandboxResponse.statusText,

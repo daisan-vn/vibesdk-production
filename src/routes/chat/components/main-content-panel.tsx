@@ -179,7 +179,7 @@ export function MainContentPanel(props: MainContentPanelProps) {
 		const FeaturePreviewComponent = featureRegistry.getLazyPreviewComponent(projectType);
 
 		// Fallback to default PreviewIframe if no feature-specific component
-		const previewContent = FeaturePreviewComponent ? (
+		const previewInner = FeaturePreviewComponent ? (
 			<Suspense
 				fallback={
 					<div className="flex-1 w-full h-full flex items-center justify-center bg-bg-3">
@@ -210,16 +210,23 @@ export function MainContentPanel(props: MainContentPanelProps) {
 				/>
 			</Suspense>
 		) : (
+			<PreviewIframe
+				src={previewUrl}
+				ref={previewRef}
+				className="flex-1 w-full h-full border-0"
+				title="Preview"
+				shouldRefreshPreview={shouldRefreshPreview}
+				manualRefreshTrigger={manualRefreshTrigger}
+				webSocket={websocket}
+			/>
+		);
+
+		// Overlay the Lovable-style visual-edit controls on EVERY preview (feature
+		// component or fallback) so click-to-edit works for 'app' projects too — the
+		// controller previously rendered only in the fallback branch.
+		const previewContent = (
 			<div className="relative flex flex-1 w-full h-full min-h-0">
-				<PreviewIframe
-					src={previewUrl}
-					ref={previewRef}
-					className="flex-1 w-full h-full border-0"
-					title="Preview"
-					shouldRefreshPreview={shouldRefreshPreview}
-					manualRefreshTrigger={manualRefreshTrigger}
-					webSocket={websocket}
-				/>
+				{previewInner}
 				<VisualEditController
 					active={visualEdit.active}
 					selected={visualEdit.selected}
