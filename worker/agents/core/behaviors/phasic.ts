@@ -883,7 +883,27 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
     }
 
     async handleUserInput(userMessage: string, images?: ImageAttachment[]): Promise<void> {
-        const result = await super.handleUserInput(userMessage, images);
-        return result;
+        await super.handleUserInput(userMessage, images);
+        // Lovable-style live iteration: the conversational turn relays change
+        // requests via queue_request (-> pendingUserInputs), but on an already-
+        // completed app the phase state machine is IDLE, so nothing consumes the
+        // queue and the edit silently waits for a manual rebuild. If we're idle
+        // (not mid-generation) and in Build mode, relaunch the state machine so
+        // the queued edits are implemented now and the preview refreshes.
+        if (
+            this.state.executionMode !== 'plan' &&
+            !this.state.shouldBeGenerating &&
+            this.state.pendingUserInputs.length > 0
+        ) {
+            this.logger.info('Idle app has queued user request(s) — relaunching state machine to apply them live', {
+                pendingCount: this.state.pendingUserInputs.length,
+            });
+            this.setState({ ...this.state, shouldBeGenerating: true });
+            // Fire-and-forget: progress streams over WebSocket; don't block the
+            // user-input handler for the entire (multi-phase) generation.
+            this.launchStateMachine().catch((error) => {
+                this.logger.error('Relaunched state machine after user input failed', error);
+            });
+        }
     }
 }
