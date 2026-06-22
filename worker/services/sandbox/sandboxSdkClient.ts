@@ -941,6 +941,69 @@ export class SandboxSdkClient extends BaseSandboxService {
                 this.logger.warn('Failed to store wrangler config in KV', { instanceId, error: error instanceof Error ? error.message : 'Unknown error' });
                 // Non-blocking - continue with setup
             }
+            // FIX (preview): some generations (notably from-scratch, and any template whose
+            // worker entry was not regenerated) end up with a wrangler `main` pointing to a file
+            // that does not exist (usually worker/index.ts). @cloudflare/vite-plugin then aborts
+            // dev AND build with "main field ... doesn't point to an existing file", so the dev
+            // server crash-loops and the preview never loads. Ensure the entry exists by writing
+            // a minimal, dependency-free Worker when it is missing (real workers are left as-is).
+            try {
+                const entrySession = await this.getInstanceSession(instanceId);
+                let mainPath = 'worker/index.ts';
+                let wr = await entrySession.readFile(`/workspace/${instanceId}/wrangler.jsonc`).catch(() => ({ success: false, content: '' }));
+                if (!wr.success) {
+                    wr = await entrySession.readFile(`/workspace/${instanceId}/wrangler.json`).catch(() => ({ success: false, content: '' }));
+                }
+                if (wr.success && wr.content) {
+                    const m = wr.content.match(/"main"\s*:\s*"([^"]+)"/);
+                    if (m) mainPath = m[1];
+                }
+                const entryExists = await this.safeSandboxExec(`test -f ${instanceId}/${mainPath} && echo y || echo n`);
+                if (entryExists.stdout.trim() !== 'y') {
+                    const stub = `// Auto-generated minimal Worker entry (the project did not ship one).\n`
+                        + `export default {\n`
+                        + `  async fetch(request) {\n`
+                        + `    const url = new URL(request.url);\n`
+                        + `    if (url.pathname === '/api/health') {\n`
+                        + `      return Response.json({ success: true, data: { status: 'healthy' } });\n`
+                        + `    }\n`
+                        + `    return Response.json({ success: false, error: 'Not Found' }, { status: 404 });\n`
+                        + `  },\n`
+                        + `};\n`;
+                    await this.safeSandboxExec(`mkdir -p ${instanceId}/$(dirname ${mainPath})`);
+                    await entrySession.writeFile(`/workspace/${instanceId}/${mainPath}`, stub);
+                    this.logger.info('Created missing worker entry to satisfy wrangler main', { instanceId, mainPath });
+                }
+            } catch (entryError) {
+                this.logger.warn('Failed to ensure worker entry (non-fatal):', entryError);
+            }
+
+            // FIX (preview): templates declare "@cloudflare/vite-plugin": "^1.17.1", which now
+            // resolves up to >=1.40 — those import { registerHooks } from "node:module", an API
+            // the sandbox's bun runtime does NOT provide, so `vite` (dev AND build) crash-loops
+            // with "does not provide an export named 'registerHooks'" and the preview never comes
+            // up. 1.17.1 is the last version the templates were authored against and is
+            // registerHooks-free, so pin it exactly (direct dep + overrides) before installing.
+            try {
+                const pinSession = await this.getInstanceSession(instanceId);
+                const pkgRead = await pinSession.readFile(`/workspace/${instanceId}/package.json`);
+                if (pkgRead.success) {
+                    const pkg = JSON.parse(pkgRead.content);
+                    const PIN = '1.17.1';
+                    for (const depKey of ['dependencies', 'devDependencies'] as const) {
+                        if (pkg[depKey] && pkg[depKey]['@cloudflare/vite-plugin']) {
+                            pkg[depKey]['@cloudflare/vite-plugin'] = PIN;
+                        }
+                    }
+                    pkg.overrides = { ...(pkg.overrides || {}), '@cloudflare/vite-plugin': PIN };
+                    pkg.resolutions = { ...(pkg.resolutions || {}), '@cloudflare/vite-plugin': PIN };
+                    await pinSession.writeFile(`/workspace/${instanceId}/package.json`, JSON.stringify(pkg, null, 2));
+                    this.logger.info('Pinned @cloudflare/vite-plugin to avoid registerHooks crash', { instanceId, pin: PIN });
+                }
+            } catch (pinError) {
+                this.logger.warn('Failed to pin @cloudflare/vite-plugin (non-fatal):', pinError);
+            }
+
             this.logger.info('Installing dependencies', { instanceId });
             // Package-manager fallback: imported (e.g. Lovable) projects may use npm/yarn
             // rather than bun. Try managers in order until one succeeds.

@@ -179,10 +179,14 @@
         },
         "CUSTOM_DOMAIN": "daisan.ai",
         "CUSTOM_PREVIEW_DOMAIN": "daisan.app",
-        // workers.dev has no wildcard subdomains for sandbox port-proxying, so live
-        // previews go through a cloudflared quick tunnel (trycloudflare.com) instead.
-        // The sandbox container ships cloudflared (see SandboxDockerfile).
-        "USE_TUNNEL_FOR_PREVIEW": "true",
+        // Live previews use the Sandbox SDK exposePort URL on the *.daisan.app wildcard
+        // (CUSTOM_PREVIEW_DOMAIN). That routes through THIS Worker (proxyToSandbox), so the
+        // response carries the X-Preview-Type + CORS (Access-Control-Allow-Origin) headers the
+        // builder's readiness probe requires. A cloudflared quick tunnel bypasses the Worker
+        // (no CORS / no X-Preview-Type), so the cross-origin HEAD probe failed and the preview
+        // showed "Preview Not Available". Keep tunnels OFF in production. NOTE: empty string is
+        // falsy; do NOT set "false" here — any non-empty string is truthy in the env check.
+        "USE_TUNNEL_FOR_PREVIEW": "",
         "MAX_SANDBOX_INSTANCES": "10",
         "SANDBOX_INSTANCE_TYPE": "standard-3"
     },
