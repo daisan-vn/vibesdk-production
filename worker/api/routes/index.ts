@@ -17,6 +17,7 @@ import { setupTicketRoutes } from './ticketRoutes';
 import { setupCloudflareConnectRoutes } from './cloudflareConnectRoutes';
 import { setupCloudflareAccountRoutes } from './cloudflareAccountRoutes';
 import { setupLimitsRoutes } from './limitsRoutes';
+import { setupAdminRoutes } from './adminRoutes';
 import { Hono } from "hono";
 import { AppEnv } from "../../types/appenv";
 import { setupStatusRoutes } from './statusRoutes';
@@ -63,6 +64,9 @@ export function setupRoutes(app: Hono<AppEnv>): void {
     
     // Stats routes
     setupStatsRoutes(app);
+
+    // Admin panel routes (gated to admin allowlist inside the controller)
+    setupAdminRoutes(app);
     
     // AI Gateway Analytics routes
     setupAnalyticsRoutes(app);

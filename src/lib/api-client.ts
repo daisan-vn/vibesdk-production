@@ -161,6 +161,40 @@ interface CSRFTokenInfo {
 	expiresAt: number;
 }
 
+// Admin panel data types
+export interface AdminUserRow {
+	id: string;
+	email: string;
+	displayName: string | null;
+	username: string | null;
+	provider: string | null;
+	isSuspended: boolean | null;
+	createdAt: string | number | null;
+	appCount: number;
+}
+export interface AdminAppRow {
+	id: string;
+	title: string;
+	userId: string | null;
+	userEmail: string | null;
+	visibility: string;
+	status: string;
+	deploymentId: string | null;
+	framework: string | null;
+	createdAt: string | number | null;
+}
+export interface AdminStats {
+	users: number;
+	apps: number;
+	deployedApps: number;
+}
+export interface AdminUserLimits {
+	userId: string;
+	hasOverride: boolean;
+	appCreationLimit: number | null;
+	llmCallsLimit: number | null;
+}
+
 class ApiClient {
 	private baseUrl: string;
 	private defaultHeaders: Record<string, string>;
@@ -452,6 +486,37 @@ class ApiClient {
 	 */
 	async getCapabilities(noToast: boolean = true): Promise<ApiResponse<CapabilitiesData>> {
 		return this.request<CapabilitiesData>('/api/capabilities', undefined, noToast);
+	}
+
+	// ===============================
+	// Admin API Methods (gated server-side to the admin allowlist)
+	// ===============================
+
+	async adminCheck(): Promise<ApiResponse<{ isAdmin: boolean }>> {
+		return this.request<{ isAdmin: boolean }>('/api/admin/check', undefined, true);
+	}
+
+	async adminStats(): Promise<ApiResponse<{ stats: AdminStats }>> {
+		return this.request<{ stats: AdminStats }>('/api/admin/stats', undefined, true);
+	}
+
+	async adminUsers(): Promise<ApiResponse<{ users: AdminUserRow[] }>> {
+		return this.request<{ users: AdminUserRow[] }>('/api/admin/users', undefined, true);
+	}
+
+	async adminApps(): Promise<ApiResponse<{ apps: AdminAppRow[] }>> {
+		return this.request<{ apps: AdminAppRow[] }>('/api/admin/apps', undefined, true);
+	}
+
+	async adminGetUserLimits(userId: string): Promise<ApiResponse<AdminUserLimits>> {
+		return this.request<AdminUserLimits>(`/api/admin/users/${userId}/limits`, undefined, true);
+	}
+
+	async adminSetUserLimits(
+		userId: string,
+		body: { appCreationLimit?: number | null; llmCallsLimit?: number | null },
+	): Promise<ApiResponse<unknown>> {
+		return this.request<unknown>(`/api/admin/users/${userId}/limits`, { method: 'PUT', body }, true);
 	}
 
 	// ===============================
