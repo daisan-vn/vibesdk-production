@@ -616,7 +616,8 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
 
         for (let round = 1; round <= MAX_FIX_ROUNDS; round++) {
             const issues = await this.fetchAllIssues(false);
-            const total = countIssues(issues);
+            const renderErrors = await this.captureRenderTimeErrors();
+            const total = countIssues(issues) + renderErrors.length;
             if (total === 0) {
                 if (round > 1) {
                     this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
@@ -641,7 +642,10 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
                 isStreaming: false,
             });
 
-            const issueDesc = `The app currently has errors and does not run cleanly: ${issues.runtimeErrors.length} runtime error(s)${issues.staticAnalysis.typecheck.issues.length ? ` and ${issues.staticAnalysis.typecheck.issues.length} type error(s)` : ''}. Investigate the root cause (read the error messages and the responsible files) and fix them so the app builds and renders with NO runtime, build, or type errors. Common culprits to check: react-router hooks (useLocation/useNavigate) used outside a <BrowserRouter>/RouterProvider; invalid CSS/Tailwind syntax; and accessing undefined/null data without guards.`;
+            const renderDetail = renderErrors.length
+                ? ` and ${renderErrors.length} render-time client error(s) captured by loading the app in a real browser: ${renderErrors.join(' | ')}.`
+                : '';
+            const issueDesc = `The app currently has errors and does not run cleanly: ${issues.runtimeErrors.length} runtime error(s)${issues.staticAnalysis.typecheck.issues.length ? ` and ${issues.staticAnalysis.typecheck.issues.length} type error(s)` : ''}${renderDetail} Investigate the root cause (read the error messages and the responsible files) and fix them so the app builds and renders with NO runtime, build, or type errors. Common culprits to check: react-router hooks (useLocation/useNavigate) used outside a <BrowserRouter>/RouterProvider; invalid CSS/Tailwind syntax; and accessing undefined/null data without guards.`;
 
             try {
                 const result = await this.executeDeepDebug(issueDesc, toolRenderer, streamCb);
@@ -658,7 +662,8 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
         // Final check — if issues persist after the auto-fix loop, fall back to
         // asking the user (the previous behaviour) instead of looping forever.
         const remaining = await this.fetchAllIssues(false);
-        if (countIssues(remaining) > 0) {
+        const remainingRender = await this.captureRenderTimeErrors();
+        if (countIssues(remaining) + remainingRender.length > 0) {
             this.logger.info('Review: issues remain after auto-fix, asking user', { remaining: countIssues(remaining) });
             const message: ConversationMessage = {
                 role: "assistant",

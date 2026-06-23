@@ -44,6 +44,7 @@ import { DeepDebuggerOperation } from '../../operations/DeepDebugger';
 import type { DeepDebuggerInputs } from '../../operations/DeepDebugger';
 import { generatePortToken } from 'worker/utils/cryptoUtils';
 import { getPreviewDomain, getProtocolForHost } from 'worker/utils/urls';
+import puppeteer from '@cloudflare/puppeteer';
 import { isDev } from 'worker/utils/envs';
 import { InMemoryAnalyzer } from '../../../services/static-analysis';
 
@@ -737,6 +738,63 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
             const message = "<runtime errors not available at the moment as preview is not deployed>";
             return [{ message, timestamp: new Date().toISOString(), level: 0, rawOutput: message }];
         }
+    }
+
+    /**
+     * Render-time error capture: load the live preview in a headless browser
+     * (Cloudflare Browser Rendering) and collect client-side errors a server-side
+     * check can't see (e.g. a hook that only throws on render, like useLocation
+     * outside <Router>). FULLY OPTIONAL — returns [] if Browser Rendering isn't
+     * bound or anything fails, so it can never break the review/generation flow.
+     */
+    async captureRenderTimeErrors(): Promise<string[]> {
+        const browserBinding = (this.env as { BROWSER?: unknown }).BROWSER;
+        if (!browserBinding || !this.state.sandboxInstanceId) {
+            return [];
+        }
+
+        let previewUrl: string | undefined;
+        try {
+            const status = await this.getSandboxServiceClient().getInstanceStatus(this.state.sandboxInstanceId);
+            previewUrl = status?.previewURL || undefined;
+        } catch (error) {
+            this.logger.warn('Render-capture: could not resolve preview URL (skipping)', error);
+            return [];
+        }
+        if (!previewUrl) {
+            return [];
+        }
+
+        const errors: string[] = [];
+        let browser: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;
+        try {
+            browser = await puppeteer.launch(this.env.BROWSER as unknown as Parameters<typeof puppeteer.launch>[0]);
+            const page = await browser.newPage();
+            page.on('pageerror', (err) => errors.push(`pageerror: ${err?.message || String(err)}`));
+            page.on('console', (msg) => {
+                if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
+            });
+            await page.goto(previewUrl, { waitUntil: 'networkidle0', timeout: 25000 }).catch(() => {});
+            // Let the SPA mount + run effects before collecting.
+            await new Promise((resolve) => setTimeout(resolve, 3000));
+            await page.close().catch(() => {});
+        } catch (error) {
+            this.logger.warn('Render-capture: headless render failed (non-fatal)', error);
+        } finally {
+            try {
+                await browser?.close();
+            } catch {
+                // ignore
+            }
+        }
+
+        // Drop network/favicon noise; dedup; cap.
+        const meaningful = errors.filter((e) => !/favicon|net::ERR|Failed to load resource/i.test(e));
+        const unique = [...new Set(meaningful)].slice(0, 15);
+        if (unique.length > 0) {
+            this.logger.info('Render-capture: client-side errors detected', { count: unique.length });
+        }
+        return unique;
     }
 
     /**

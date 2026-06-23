@@ -68,6 +68,7 @@ declare namespace Cloudflare {
 		API_RATE_LIMITER: RateLimit;
 		AUTH_RATE_LIMITER: RateLimit;
 		AI: Ai;
+		BROWSER: Fetcher;
 		CF_VERSION_METADATA: WorkerVersionMetadata;
 		ASSETS: Fetcher;
 		ENABLE_CLOUDFLARE_LIMITS: string;

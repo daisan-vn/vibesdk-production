@@ -55,6 +55,12 @@
 		"binding": "AI",
         "remote": true
 	},
+    // Browser Rendering — headless Chromium for render-time error capture during
+    // the auto-fix review (catches client-side runtime errors a server-side check
+    // can't see). Used optionally; code falls back gracefully if unavailable.
+    "browser": {
+        "binding": "BROWSER"
+    },
     "dispatch_namespaces": [
         {
             "binding": "DISPATCHER",
