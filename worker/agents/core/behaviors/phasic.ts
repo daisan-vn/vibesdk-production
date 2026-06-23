@@ -942,7 +942,27 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
     }
 
     async handleUserInput(userMessage: string, images?: ImageAttachment[]): Promise<void> {
+        const pendingBefore = this.state.pendingUserInputs.length;
         await super.handleUserInput(userMessage, images);
+
+        // Reliability: in Build mode a change request must be IMPLEMENTED, not just
+        // acknowledged. The conversational layer is supposed to relay it via
+        // queue_request, but it sometimes only replies "I'll do it next phase"
+        // without actually queuing — so nothing gets built. If we're idle (a
+        // completed app), in Build mode, nothing was queued by the conversation, and
+        // the user sent a real message, queue it directly so it actually gets built.
+        if (
+            this.state.executionMode !== 'plan' &&
+            !this.state.shouldBeGenerating &&
+            this.state.pendingUserInputs.length === pendingBefore &&
+            userMessage.trim().length > 0
+        ) {
+            this.logger.info('Build-mode message was not queued by the conversational layer — queuing it directly so it gets built', {
+                messageLength: userMessage.length,
+            });
+            await this.queueUserRequest(userMessage);
+        }
+
         // Lovable-style live iteration: the conversational turn relays change
         // requests via queue_request (-> pendingUserInputs), but on an already-
         // completed app the phase state machine is IDLE, so nothing consumes the
