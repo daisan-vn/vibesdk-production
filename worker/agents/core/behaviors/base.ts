@@ -765,36 +765,54 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
             return [];
         }
 
-        const errors: string[] = [];
-        let browser: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;
+        const url = previewUrl;
+        const doCapture = async (): Promise<string[]> => {
+            const errors: string[] = [];
+            let browser: Awaited<ReturnType<typeof puppeteer.launch>> | undefined;
+            try {
+                browser = await puppeteer.launch(this.env.BROWSER as unknown as Parameters<typeof puppeteer.launch>[0]);
+                const page = await browser.newPage();
+                page.on('pageerror', (err) => errors.push(`pageerror: ${err?.message || String(err)}`));
+                page.on('console', (msg) => {
+                    if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
+                });
+                await page.goto(url, { waitUntil: 'networkidle0', timeout: 20000 }).catch(() => {});
+                // Let the SPA mount + run effects before collecting.
+                await new Promise((resolve) => setTimeout(resolve, 3000));
+                await page.close().catch(() => {});
+            } finally {
+                try {
+                    await browser?.close();
+                } catch {
+                    // ignore
+                }
+            }
+            // Drop network/favicon noise; dedup; cap.
+            const meaningful = errors.filter((e) => !/favicon|net::ERR|Failed to load resource/i.test(e));
+            return [...new Set(meaningful)].slice(0, 15);
+        };
+
+        // HARD CAP: a hung headless browser / Browser Rendering must NEVER stall the
+        // review. Race the whole capture against a timeout and skip on expiry.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const timeout = new Promise<string[]>((resolve) => {
+            timer = setTimeout(() => {
+                this.logger.warn('Render-capture: timed out, skipping');
+                resolve([]);
+            }, 40000);
+        });
         try {
-            browser = await puppeteer.launch(this.env.BROWSER as unknown as Parameters<typeof puppeteer.launch>[0]);
-            const page = await browser.newPage();
-            page.on('pageerror', (err) => errors.push(`pageerror: ${err?.message || String(err)}`));
-            page.on('console', (msg) => {
-                if (msg.type() === 'error') errors.push(`console.error: ${msg.text()}`);
-            });
-            await page.goto(previewUrl, { waitUntil: 'networkidle0', timeout: 25000 }).catch(() => {});
-            // Let the SPA mount + run effects before collecting.
-            await new Promise((resolve) => setTimeout(resolve, 3000));
-            await page.close().catch(() => {});
+            const result = await Promise.race([doCapture(), timeout]);
+            if (result.length > 0) {
+                this.logger.info('Render-capture: client-side errors detected', { count: result.length });
+            }
+            return result;
         } catch (error) {
             this.logger.warn('Render-capture: headless render failed (non-fatal)', error);
+            return [];
         } finally {
-            try {
-                await browser?.close();
-            } catch {
-                // ignore
-            }
+            if (timer) clearTimeout(timer);
         }
-
-        // Drop network/favicon noise; dedup; cap.
-        const meaningful = errors.filter((e) => !/favicon|net::ERR|Failed to load resource/i.test(e));
-        const unique = [...new Set(meaningful)].slice(0, 15);
-        if (unique.length > 0) {
-            this.logger.info('Render-capture: client-side errors detected', { count: unique.length });
-        }
-        return unique;
     }
 
     /**

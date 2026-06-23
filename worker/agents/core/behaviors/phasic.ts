@@ -604,7 +604,7 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             reviewingInitiated: true
         });
 
-        const MAX_FIX_ROUNDS = 2;
+        const MAX_FIX_ROUNDS = 1;
         const conversationId = IdGenerator.generateConversationId();
         const responseCb = (message: string, convId: string, isStreaming: boolean, tool?: ToolCallStatusArgs) => {
             this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, { message, conversationId: convId, isStreaming, tool });
