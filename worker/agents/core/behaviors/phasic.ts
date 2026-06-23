@@ -11,7 +11,7 @@ import { CurrentDevState, MAX_PHASES, PhasicState } from '../state';
 import { createBuildJob, transition as buildTransition } from '../buildJob';
 import { AllIssues, AgentInitArgs, PhaseExecutionResult, UserContext } from '../types';
 import { WebSocketMessageResponses } from '../../constants';
-import { UserConversationProcessor } from '../../operations/UserConversationProcessor';
+import { UserConversationProcessor, buildToolCallRenderer, type ToolCallStatusArgs } from '../../operations/UserConversationProcessor';
 import { GenerationContext, PhasicGenerationContext } from '../../domain/values/GenerationContext';
 import { IssueReport } from '../../domain/values/IssueReport';
 import { PhaseImplementationOperation } from '../../operations/PhaseImplementation';
@@ -587,10 +587,14 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
     }
 
     /**
-     * Execute review cycle state - review and cleanup
+     * Execute review cycle state — AUTOMATIC auto-fix loop.
+     * Lovable-style: rather than merely asking the user, detect build/runtime/
+     * type errors and auto-fix them (deep_debug) in a bounded loop BEFORE the
+     * app is considered done, so generated apps don't ship broken. Only if
+     * issues still remain after the loop do we fall back to asking the user.
      */
     async executeReviewCycle(): Promise<CurrentDevState> {
-        this.logger.info("Executing REVIEWING state - review and cleanup");
+        this.logger.info("Executing REVIEWING state - automatic auto-fix loop");
         if (this.state.reviewingInitiated) {
             this.logger.info("Reviewing already initiated, skipping");
             return CurrentDevState.IDLE;
@@ -600,18 +604,68 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             reviewingInitiated: true
         });
 
-        // If issues/errors found, prompt user if they want to review and cleanup
-        const issues = await this.fetchAllIssues(false);
-        if (issues.runtimeErrors.length > 0 || issues.staticAnalysis.typecheck.issues.length > 0) {
-            this.logger.info("Reviewing stage - issues found, prompting user to review and cleanup");
-            const message : ConversationMessage = {
-                role: "assistant",
-                content: `<system_context>If the user responds with yes, launch the 'deep_debug' tool with the prompt to fix all the issues in the app</system_context>\nThere might be some bugs in the app. Do you want me to try to fix them?`,
-                conversationId: IdGenerator.generateConversationId(),
+        const MAX_FIX_ROUNDS = 2;
+        const conversationId = IdGenerator.generateConversationId();
+        const responseCb = (message: string, convId: string, isStreaming: boolean, tool?: ToolCallStatusArgs) => {
+            this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, { message, conversationId: convId, isStreaming, tool });
+        };
+        const toolRenderer = buildToolCallRenderer(responseCb, conversationId);
+        const streamCb = (chunk: string) => responseCb(chunk, conversationId, true);
+        const countIssues = (issues: AllIssues): number =>
+            issues.runtimeErrors.length + issues.staticAnalysis.typecheck.issues.length;
+
+        for (let round = 1; round <= MAX_FIX_ROUNDS; round++) {
+            const issues = await this.fetchAllIssues(false);
+            const total = countIssues(issues);
+            if (total === 0) {
+                if (round > 1) {
+                    this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
+                        message: '✅ Auto-fix complete — the app builds and runs with no detected errors.',
+                        conversationId,
+                        isStreaming: false,
+                    });
+                }
+                this.logger.info('Review: no issues found, app is healthy', { round });
+                return CurrentDevState.IDLE;
             }
-            // Store the message in the conversation history so user's response can trigger the deep debug tool
+
+            this.logger.info('Review: auto-fixing issues', {
+                round,
+                total,
+                runtime: issues.runtimeErrors.length,
+                typecheck: issues.staticAnalysis.typecheck.issues.length,
+            });
+            this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
+                message: `Found ${total} issue(s) — auto-fixing now (round ${round}/${MAX_FIX_ROUNDS})…`,
+                conversationId,
+                isStreaming: false,
+            });
+
+            const issueDesc = `The app currently has errors and does not run cleanly: ${issues.runtimeErrors.length} runtime error(s)${issues.staticAnalysis.typecheck.issues.length ? ` and ${issues.staticAnalysis.typecheck.issues.length} type error(s)` : ''}. Investigate the root cause (read the error messages and the responsible files) and fix them so the app builds and renders with NO runtime, build, or type errors. Common culprits to check: react-router hooks (useLocation/useNavigate) used outside a <BrowserRouter>/RouterProvider; invalid CSS/Tailwind syntax; and accessing undefined/null data without guards.`;
+
+            try {
+                const result = await this.executeDeepDebug(issueDesc, toolRenderer, streamCb);
+                if (!result.success) {
+                    this.logger.warn('Auto-fix round did not complete', { round, error: result.error });
+                    break;
+                }
+            } catch (error) {
+                this.logger.warn('Auto-fix round threw', { round, error });
+                break;
+            }
+        }
+
+        // Final check — if issues persist after the auto-fix loop, fall back to
+        // asking the user (the previous behaviour) instead of looping forever.
+        const remaining = await this.fetchAllIssues(false);
+        if (countIssues(remaining) > 0) {
+            this.logger.info('Review: issues remain after auto-fix, asking user', { remaining: countIssues(remaining) });
+            const message: ConversationMessage = {
+                role: "assistant",
+                content: `<system_context>If the user responds with yes, launch the 'deep_debug' tool with the prompt to fix all the issues in the app</system_context>\nI auto-fixed what I could, but a few issues still remain. Want me to keep trying to fix them?`,
+                conversationId: IdGenerator.generateConversationId(),
+            };
             this.infrastructure.addConversationMessage(message);
-            
             this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, {
                 message: message.content,
                 conversationId: message.conversationId,
