@@ -29,8 +29,16 @@ export async function handleWebSocketMessage(
     message: string
 ): Promise<void> {
     try {
-        logger.info(`Received WebSocket message from ${connection.id}: ${message}`);
         const parsedMessage = JSON.parse(message) as IncomingWebSocketMessage;
+
+        // Client heartbeat: keeps the WS alive through quiet stretches of a long
+        // build (edge idle-timeouts would otherwise drop it → "Reconnecting…"
+        // churn). Handle it before logging + the switch so it neither spams logs
+        // (one per ~30s per client) nor hits the "Unknown message type" error
+        // path. No response needed — receiving the frame resets the idle timer.
+        if (parsedMessage.type === 'ping') return;
+
+        logger.info(`Received WebSocket message from ${connection.id}: ${message}`);
 
         switch (parsedMessage.type) {
             case WebSocketMessageRequests.SESSION_INIT: {

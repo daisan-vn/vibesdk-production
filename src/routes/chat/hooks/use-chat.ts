@@ -683,6 +683,21 @@ export function useChat({
         };
     }, [websocket]);
 
+    // Heartbeat: while connected, ping every 30s so the WS isn't dropped for
+    // idleness during long quiet build stretches (the server ignores 'ping').
+    // This cuts the "Reconnecting…" churn and the dropped sends it caused (e.g.
+    // the Auto-fix suggestion silently not reaching the agent). Self-contained:
+    // restarts on reconnect (new socket) and clears on disconnect/unmount.
+    useEffect(() => {
+        if (!websocket || connectionState !== 'connected') return;
+        const id = setInterval(() => {
+            if (websocket.readyState === 1) {
+                try { websocket.send(JSON.stringify({ type: 'ping' })); } catch { /* socket closing */ }
+            }
+        }, 30000);
+        return () => clearInterval(id);
+    }, [websocket, connectionState]);
+
 	useEffect(() => {
 		if (edit) {
 			// When edit is cleared, write the edit changes

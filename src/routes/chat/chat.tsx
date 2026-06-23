@@ -803,11 +803,18 @@ export default function Chat() {
 	}, []);
 
 	const handleAutoFix = useCallback(() => {
-		if (!websocket) return;
-		sendWebSocketMessage(websocket, 'user_suggestion', {
-			message: 'Please fix the errors and warnings found during the build checks.',
+		// The real trigger is the user_suggestion WS frame (mode:'build' →
+		// handleUserInput → build). sendUserMessage only adds a local bubble, so if
+		// the socket isn't ready the click would silently do nothing — guard on the
+		// send result and tell the user instead of leaving a dead "Auto-fix" bubble.
+		const sent = sendWebSocketMessage(websocket, 'user_suggestion', {
+			message: 'Please fix ALL the errors and warnings found during the build checks so the app builds and runs with no runtime, build, or type errors.',
 			mode: 'build',
 		});
+		if (!sent) {
+			toast.error('Connection not ready — wait a moment, then click Auto-fix again.');
+			return;
+		}
 		sendUserMessage('Auto-fix the build issues');
 		requestAnimationFrame(() => scrollToBottom());
 	}, [websocket, sendUserMessage, scrollToBottom]);

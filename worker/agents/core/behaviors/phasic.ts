@@ -604,7 +604,11 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             reviewingInitiated: true
         });
 
-        const MAX_FIX_ROUNDS = 1;
+        // Two rounds: a single deep_debug pass often clears only some of the errors
+        // (observed: 4 runtime errors survived 1 round). Round 2 re-checks and fixes
+        // the remainder. Bounded so review wall-clock stays sane; render-capture has
+        // its own 40s timeout and the loop early-exits the moment issues hit zero.
+        const MAX_FIX_ROUNDS = 2;
         const conversationId = IdGenerator.generateConversationId();
         const responseCb = (message: string, convId: string, isStreaming: boolean, tool?: ToolCallStatusArgs) => {
             this.broadcast(WebSocketMessageResponses.CONVERSATION_RESPONSE, { message, conversationId: convId, isStreaming, tool });
