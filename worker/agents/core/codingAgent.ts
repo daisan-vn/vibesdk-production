@@ -231,6 +231,20 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
             inferenceContext.metadata.agentId,
         );
 
+        // P2 — Persist template identity FIRST, before the slow blueprint/setup phase.
+        // The behavior keeps the template files only in a VOLATILE field
+        // (templateDetailsCache) that is lost on a DO restart; the persisted name was
+        // previously written only at the END of behavior.initialize (after blueprint
+        // generation). If a restart races that slow step, onStart -> ensureTemplateDetails
+        // re-reads a BLANK state.templateName and the build fails with
+        // "Failed to get template details for:". Writing it here makes the identity
+        // durable from the first moment of init.
+        const initTemplateName = initArgs.templateInfo?.templateDetails?.name;
+        if (initTemplateName && this.state.templateName !== initTemplateName) {
+            this.setState({ ...this.state, templateName: initTemplateName });
+            this.logger().info('[lifecycle] persisted templateName early (initialize)', { templateName: initTemplateName });
+        }
+
         // Let behavior handle all state initialization (blueprint, projectName, etc.)
         await this.behavior.initialize({
             ...initArgs,
