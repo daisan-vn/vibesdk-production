@@ -143,11 +143,13 @@ Reasoning: "Social template provides user interactions, content sharing, and com
 
 ## TEMPLATE FAMILY SELECTION (READ CAREFULLY — this is the #1 cause of bad results):
 
-Templates fall into two families. Picking the wrong family produces a generic, wrong app.
+Templates fall into three families. Picking the wrong family produces a generic, wrong app.
 
 1. **Client-side React SPA** (a modern React single-page-app starter): the correct choice for the VAST MAJORITY of UI-driven apps — storefronts, e-commerce, marketplaces, product catalogs, product listings, landing/marketing pages, showroom/locator sites, dashboards, portfolios, and any content-rich interface whose value is the UI/UX. Data can be mock/seed data now and wired to a real API later. **PREFER THIS BY DEFAULT for rich front-end apps.**
 
 2. **Durable-Object / multi-entity storage backends** (an app built around one Durable Object storing entities, usually shipping with a generic "Users / Chats / Messages" demo CRUD): choose ONLY when persistent multi-user SERVER-SIDE state is the CORE, irreducible requirement — e.g. realtime collaboration, multiplayer, chat/messaging backends, apps whose primary purpose is saving user-generated records on the server.
+
+3. **Server-rendered React — TanStack Start / SSR** (the "tanstack-start-runner" template): choose ONLY when the request EXPLICITLY needs server-side rendering — SEO-critical pages rendered on the server, server-side data loading via route loaders / server functions, or continuing/importing an existing TanStack Start project. Do NOT pick this for ordinary client-side apps, dashboards, or storefronts (those are family 1). When unsure between this and the React SPA, pick the React SPA.
 
 CRITICAL rules:
 - Do NOT pick a storage/Durable-Object template merely because the request mentions "products", "categories", "users", "items" or other "entities". A storefront/catalog with browsable products is a **React SPA with (mock) data**, NOT an entity-CRUD backend.
