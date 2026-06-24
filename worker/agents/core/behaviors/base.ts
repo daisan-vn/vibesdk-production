@@ -170,14 +170,29 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
     onStateUpdate(_state: TState, _source: "server" | Connection) {}
 
     async ensureTemplateDetails() {
+        // P1 — lifecycle instrumentation: surface template identity at every load
+        // attempt (cache hit vs miss) so a blank templateName after a restart is visible.
+        this.logger.info('[lifecycle] ensureTemplateDetails', {
+            templateName: this.state.templateName,
+            cacheHit: !!this.templateDetailsCache,
+        });
         // Skip fetching details for "scratch" baseline
         if (!this.templateDetailsCache) {
             if (this.state.templateName === 'scratch') {
                 this.logger.info('Skipping template details fetch for scratch baseline');
                 return;
             }
+            if (!this.state.templateName) {
+                this.logger.error('[lifecycle] ensureTemplateDetails BLANK templateName (volatile cache lost on restart, persisted name missing)', {});
+            }
             this.logger.info(`Loading template details for: ${this.state.templateName}`);
+            const t0 = Date.now();
             const results = await BaseSandboxService.getTemplateDetails(this.state.templateName);
+            this.logger.info('[lifecycle] getTemplateDetails result', {
+                templateName: this.state.templateName,
+                success: results.success,
+                durationMs: Date.now() - t0,
+            });
             if (!results.success || !results.templateDetails) {
                 throw new Error(`Failed to get template details for: ${this.state.templateName}`);
             }

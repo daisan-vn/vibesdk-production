@@ -173,6 +173,9 @@
         "TURNSTILE_SITE_KEY": "0x4AAAAAADonkMdMN2CTihM5",
         "DAISAN_SPECIALISTS_ENABLED": "true",
         "DAISAN_CLARIFY_ENABLED": "true",
+        // Internal beta: SSR/TanStack Start template. "" = off (normal users fall
+        // back to React SPA). Set to "true" only on an internal/canary deployment.
+        "DAISAN_TANSTACK_BETA": "",
         "PLATFORM_CAPABILITIES": {
             "features": {
                 "app": {

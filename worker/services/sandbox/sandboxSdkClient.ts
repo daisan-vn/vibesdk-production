@@ -1004,10 +1004,12 @@ export class SandboxSdkClient extends BaseSandboxService {
                 this.logger.warn('Failed to pin @cloudflare/vite-plugin (non-fatal):', pinError);
             }
 
-            this.logger.info('Installing dependencies', { instanceId });
+            this.logger.info('[lifecycle] installing dependencies', { instanceId });
             // Package-manager fallback: imported (e.g. Lovable) projects may use npm/yarn
             // rather than bun. Try managers in order until one succeeds.
             const installCommands = ['bun install', 'npm install', 'yarn install'];
+            const installT0 = Date.now();
+            let usedInstallCmd = installCommands[0];
             let installResult = await this.executeCommand(instanceId, installCommands[0], { timeout: 240000 });
             for (let i = 1; i < installCommands.length && installResult.exitCode !== 0; i++) {
                 this.logger.warn('Install failed, trying next package manager', {
@@ -1015,9 +1017,11 @@ export class SandboxSdkClient extends BaseSandboxService {
                     failed: installCommands[i - 1],
                     stderr: (installResult.stderr || '').slice(0, 400),
                 });
+                usedInstallCmd = installCommands[i];
                 installResult = await this.executeCommand(instanceId, installCommands[i], { timeout: 240000 });
             }
-            this.logger.info('Dependencies installed', { instanceId, exitCode: installResult.exitCode });
+            // P1 — lifecycle instrumentation: which manager won, exit code, and how long.
+            this.logger.info('[lifecycle] dependencies installed', { instanceId, command: usedInstallCmd, exitCode: installResult.exitCode, durationMs: Date.now() - installT0 });
                 
             if (installResult.exitCode === 0) {
                 if (localEnvVars) {

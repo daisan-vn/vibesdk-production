@@ -141,7 +141,7 @@ async function handleAITemplateSelection(args: Omit<TemplateQueryArgs, 'selected
         throw new Error(`Failed to fetch templates from sandbox service, ${templatesResponse.error}`);
     }
 
-    const aiSelection = await selectTemplate({
+    let aiSelection = await selectTemplate({
         env,
         inferenceContext,
         query,
@@ -157,6 +157,26 @@ async function handleAITemplateSelection(args: Omit<TemplateQueryArgs, 'selected
         const scratch = createScratchTemplateDetails();
         return { templateDetails: scratch, selection: aiSelection, projectType: aiSelection.projectType };
     }
+
+    // P0 — Internal beta gate. SSR/TanStack Start is not production-certified yet.
+    // Unless DAISAN_TANSTACK_BETA is enabled, a selected beta template falls back to
+    // the React SPA so normal users never receive an uncertified SSR build. The
+    // original choice + reason are RECORDED — never a silent fallback.
+    const BETA_TEMPLATE_NAMES = new Set(['tanstack-start-runner']);
+    const tanstackBetaEnabled = (env as unknown as Record<string, string | undefined>).DAISAN_TANSTACK_BETA === 'true';
+    if (BETA_TEMPLATE_NAMES.has(aiSelection.selectedTemplateName) && !tanstackBetaEnabled) {
+        const original = aiSelection.selectedTemplateName;
+        const REACT_SPA_FALLBACK = 'c-code-react-runner';
+        const fallback = templatesResponse.templates.find(t => t.name === REACT_SPA_FALLBACK);
+        if (fallback) {
+            logger.warn('[lifecycle] beta template gated -> React SPA fallback', { original, fallback: REACT_SPA_FALLBACK, reason: 'DAISAN_TANSTACK_BETA not enabled' });
+            aiSelection = { ...aiSelection, selectedTemplateName: REACT_SPA_FALLBACK, reasoning: `[fallback: ${original} is internal beta, flag off] ${aiSelection.reasoning}` };
+        } else {
+            logger.error('[lifecycle] beta gated but React SPA fallback missing; proceeding with beta template', { original });
+        }
+    }
+
+    logger.info('[lifecycle] template-selected', { templateName: aiSelection.selectedTemplateName, projectType: aiSelection.projectType });
 
     const matchedTemplate = templatesResponse.templates.find(t => t.name === aiSelection.selectedTemplateName);
     if (!matchedTemplate) {

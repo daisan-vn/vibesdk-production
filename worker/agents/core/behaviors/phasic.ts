@@ -171,6 +171,9 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             behaviorType: 'phasic'
         };
         this.setState(nextState);
+        // P1 — lifecycle instrumentation: record the persisted template identity so a
+        // later blank templateName (e.g. after a DO restart) is traceable to this point.
+        this.logger.info('[lifecycle] persisted templateName', { templateName: nextState.templateName, projectName });
         // Customize template files (package.json, wrangler.jsonc, .bootstrap.js, .gitignore)
         const customizedFiles = customizeTemplateFiles(
             templateInfo.templateDetails.allFiles,
