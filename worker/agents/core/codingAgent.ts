@@ -4,6 +4,7 @@ import { AgenticState, AgentState, BaseProjectState, CurrentDevState, MAX_PHASES
 import { Blueprint } from "../schemas";
 import { BaseCodingBehavior } from "./behaviors/base";
 import { createObjectLogger, StructuredLogger } from '../../logger';
+import { logLifecycleEvent } from './lifecycleLogger';
 import { InferenceMetadata } from "../inferutils/config.types";
 import { getMimeType } from 'hono/utils/mime';
 import { normalizePath, isPathSafe } from '../../utils/pathUtils';
@@ -206,6 +207,7 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
         const { inferenceContext } = initArgs;
         const sandboxSessionId = DeploymentManager.generateNewSessionId();
         this.initLogger(inferenceContext.metadata.agentId, inferenceContext.metadata.userId, sandboxSessionId);
+        logLifecycleEvent(this.logger(), 'agent_initialize_started', { phase: 'initialize' });
 
         // Infrastructure setup
         await this.gitInit();
@@ -240,9 +242,24 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
         // "Failed to get template details for:". Writing it here makes the identity
         // durable from the first moment of init.
         const initTemplateName = initArgs.templateInfo?.templateDetails?.name;
+        logLifecycleEvent(this.logger(), 'template_identity_received', {
+            phase: 'initialize',
+            identity: {
+                receivedTemplateName: initTemplateName,
+                storedTemplateName: this.state.templateName,
+            },
+        });
         if (initTemplateName && this.state.templateName !== initTemplateName) {
             this.setState({ ...this.state, templateName: initTemplateName });
-            this.logger().info('[lifecycle] persisted templateName early (initialize)', { templateName: initTemplateName });
+            this.logger().setField('templateName', initTemplateName);
+            this.logger().setField('templateId', initTemplateName);
+            logLifecycleEvent(this.logger(), 'template_identity_persisted', {
+                phase: 'initialize',
+                identity: {
+                    receivedTemplateName: initTemplateName,
+                    storedTemplateName: this.state.templateName,
+                },
+            });
         }
 
         // Let behavior handle all state initialization (blueprint, projectName, etc.)
@@ -275,6 +292,11 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
             this.setState(migratedState);
         }
 
+        logLifecycleEvent(this.logger(), 'durable_object_started', {
+            phase: 'durable_object',
+            initialized: !!this.state.query,
+            templateName: this.state.templateName || undefined,
+        });
         this.logger().info(`Agent ${this.getAgentId()} session: ${this.state.sessionId} onStart`, { props });
 
         this.logger().info('Bootstrapping CodeGeneratorAgent', { props });
@@ -309,6 +331,11 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
             this.logger().info(`Agent ${this.getAgentId()} starting in READ-ONLY mode - skipping expensive initialization`);
             return;
         }
+
+        logLifecycleEvent(this.logger(), 'durable_object_resumed', {
+            phase: 'durable_object',
+            templateName: this.state.templateName || undefined,
+        });
         
         // Just in case
         await this.gitInit();
@@ -371,16 +398,40 @@ export class CodeGeneratorAgent extends Agent<Env, AgentState> implements AgentI
     private initLogger(agentId: string, userId: string, sessionId?: string) {
         this._logger = createObjectLogger(this, 'CodeGeneratorAgent');
         this._logger.setObjectId(agentId);
+        // Stable correlation context attached to EVERY agent log line, so a single
+        // build/restart can be filtered from stored observability logs by agentId
+        // alone. projectId == agentId (the DO id IS the project/app id here);
+        // tenantId == userId (the owning user is the tenant).
         this._logger.setFields({
             agentId,
+            projectId: agentId,
+            tenantId: userId,
             userId,
+            deploymentId: this.workerDeploymentId(),
             projectType: this.state.projectType,
-            behaviorType: this.state.behaviorType
+            behaviorType: this.state.behaviorType,
         });
         if (sessionId) {
             this._logger.setField('sessionId', sessionId);
         }
+        // Lifecycle identity known at (re)init time, re-attached on every wake so a
+        // resumed build keeps carrying it after the volatile logger is recreated.
+        if (this.state.templateName) {
+            this._logger.setField('templateName', this.state.templateName);
+            this._logger.setField('templateId', this.state.templateName);
+        }
+        if (this.state.sandboxInstanceId) {
+            this._logger.setField('sandboxInstanceId', this.state.sandboxInstanceId);
+        }
         return this._logger;
+    }
+
+    /** Worker version/deployment identifier from the CF_VERSION_METADATA binding. */
+    private workerDeploymentId(): string | undefined {
+        const meta = (this.env as unknown as {
+            CF_VERSION_METADATA?: { id?: string; tag?: string };
+        }).CF_VERSION_METADATA;
+        return meta?.id ?? meta?.tag;
     }
     
     // ==========================================

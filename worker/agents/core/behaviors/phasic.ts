@@ -20,6 +20,7 @@ import { PhaseGenerationOperation } from '../../operations/PhaseGeneration';
 import { FastCodeFixerOperation } from '../../operations/PostPhaseCodeFixer';
 import { customizePackageJson, customizeTemplateFiles, generateProjectName } from '../../utils/templateCustomizer';
 import { generateBlueprint } from '../../planning/blueprint';
+import { logLifecycleEvent } from '../lifecycleLogger';
 import { getSupabaseScaffoldFiles, ensureSupabaseDep } from '../../utils/supabaseScaffold';
 import { RateLimitExceededError } from 'shared/types/errors';
 import {  ImageAttachment, type ProcessedImageAttachment } from '../../../types/image-attachment';
@@ -124,6 +125,10 @@ export class PhasicCodingBehavior extends BaseCodingBehavior<PhasicState> implem
             // P2-P4: Daisan specialists run NON-BLOCKING (fire-and-forget) elsewhere
             // (see codingAgent.initialize → runSpecialistsToPlan) so they never delay
             // the blueprint / drop the WebSocket. They persist a reference plan instead.
+            logLifecycleEvent(this.logger, 'blueprint_started', {
+                phase: 'blueprint',
+                templateName: this.state.templateName || templateInfo?.templateDetails?.name || undefined,
+            });
             blueprint = await generateBlueprint({
                 env: this.env,
                 inferenceContext,

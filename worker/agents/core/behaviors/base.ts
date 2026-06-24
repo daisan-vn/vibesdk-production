@@ -13,6 +13,7 @@ import { WebSocketMessageResponses } from '../../constants';
 import { analyzeForClarification } from '../../planning/clarify';
 import { generateFollowupSuggestions as inferFollowupSuggestions } from '../../planning/followupSuggestions';
 import { createBuildJob, transition as buildTransition } from '../buildJob';
+import { logLifecycleEvent } from '../lifecycleLogger';
 import { ProjectSetupAssistant } from '../../assistants/projectsetup';
 import { UserConversationProcessor, RenderToolCall } from '../../operations/UserConversationProcessor';
 import { FileRegenerationOperation } from '../../operations/FileRegeneration';
@@ -170,32 +171,41 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
     onStateUpdate(_state: TState, _source: "server" | Connection) {}
 
     async ensureTemplateDetails() {
-        // P1 — lifecycle instrumentation: surface template identity at every load
-        // attempt (cache hit vs miss) so a blank templateName after a restart is visible.
-        this.logger.info('[lifecycle] ensureTemplateDetails', {
-            templateName: this.state.templateName,
-            cacheHit: !!this.templateDetailsCache,
+        const cacheHit = !!this.templateDetailsCache;
+        logLifecycleEvent(this.logger, 'ensure_template_details_started', {
+            phase: 'template_load',
+            cacheHit,
+            identity: { storedTemplateName: this.state.templateName },
         });
         // Skip fetching details for "scratch" baseline
         if (!this.templateDetailsCache) {
             if (this.state.templateName === 'scratch') {
-                this.logger.info('Skipping template details fetch for scratch baseline');
+                logLifecycleEvent(this.logger, 'ensure_template_details_succeeded', {
+                    phase: 'template_load',
+                    cacheHit: false,
+                    reason: 'scratch_skipped',
+                    identity: { storedTemplateName: this.state.templateName },
+                });
                 return;
-            }
-            if (!this.state.templateName) {
-                this.logger.error('[lifecycle] ensureTemplateDetails BLANK templateName (volatile cache lost on restart, persisted name missing)', {});
             }
             this.logger.info(`Loading template details for: ${this.state.templateName}`);
             const t0 = Date.now();
             const results = await BaseSandboxService.getTemplateDetails(this.state.templateName);
-            this.logger.info('[lifecycle] getTemplateDetails result', {
-                templateName: this.state.templateName,
-                success: results.success,
-                durationMs: Date.now() - t0,
-            });
             if (!results.success || !results.templateDetails) {
+                logLifecycleEvent(this.logger, 'ensure_template_details_failed', {
+                    phase: 'template_load',
+                    durationMs: Date.now() - t0,
+                    reason: this.state.templateName ? 'template_details_unavailable' : 'blank_template_name',
+                    identity: { storedTemplateName: this.state.templateName },
+                }, 'error');
                 throw new Error(`Failed to get template details for: ${this.state.templateName}`);
             }
+            logLifecycleEvent(this.logger, 'ensure_template_details_succeeded', {
+                phase: 'template_load',
+                cacheHit: false,
+                durationMs: Date.now() - t0,
+                identity: { storedTemplateName: this.state.templateName },
+            });
             
             const templateDetails = results.templateDetails;
             
@@ -215,12 +225,23 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
                 ...templateDetails,
                 allFiles: customizedAllFiles
             };
-            this.logger.info('Template details loaded and customized');
+            logLifecycleEvent(this.logger, 'template_loaded', {
+                phase: 'template_load',
+                renderMode: templateDetails.renderMode,
+                fileCount: Object.keys(customizedAllFiles).length,
+                identity: { storedTemplateName: this.state.templateName },
+            });
 
             // If renderMode == 'browser', we can deploy right away
             if (templateDetails.renderMode === 'browser') {
                 await this.deployToSandbox();
             }
+        } else {
+            logLifecycleEvent(this.logger, 'ensure_template_details_succeeded', {
+                phase: 'template_load',
+                cacheHit: true,
+                identity: { storedTemplateName: this.state.templateName },
+            });
         }
         return this.templateDetailsCache;
     }
@@ -489,6 +510,11 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
             this.logger.info("Code generation already in progress");
             return;
         }
+        logLifecycleEvent(this.logger, 'code_generation_started', {
+            phase: 'code_generation',
+            templateName: this.state.templateName || undefined,
+            pendingUserInputs: this.state.pendingUserInputs.length,
+        });
         this.generationPromise = this.buildWrapper();
         await this.generationPromise;
     }
@@ -1385,7 +1411,16 @@ export abstract class BaseCodingBehavior<TState extends BaseProjectState>
         if (!this.isPreviewable()) {
             throw new Error('Project is not previewable');
         }
-        this.logger.info('[AGENT] Deploying to sandbox', { files: files.length, redeploy, commitMessage, renderMode: this.getTemplateDetails()?.renderMode, templateDetails: this.getTemplateDetails() });
+        logLifecycleEvent(this.logger, 'sandbox_deployment_started', {
+            phase: 'sandbox_deployment',
+            redeploy,
+            fileCount: files.length,
+            renderMode: this.getTemplateDetails()?.renderMode,
+            templateName: this.state.templateName || undefined,
+        });
+        // NOTE: do not log full templateDetails here — allFiles holds template file
+        // contents (redaction rule). renderMode is the only field needed downstream.
+        this.logger.info('[AGENT] Deploying to sandbox', { files: files.length, redeploy, commitMessage, renderMode: this.getTemplateDetails()?.renderMode });
 
         if (this.getTemplateDetails()?.renderMode === 'browser') {
             this.logger.info('Deploying to browser native sandbox');
