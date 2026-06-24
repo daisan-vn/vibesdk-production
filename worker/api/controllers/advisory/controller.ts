@@ -112,7 +112,6 @@ export class AdvisoryController extends BaseController {
 				env,
 				messages: prepared.messages,
 				agentActionName: 'conversationalResponse',
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
 				context: prepared.inferenceContext as any,
 				maxTokens: 6000,
 				throwOnExhaustion: true,
@@ -148,7 +147,6 @@ export class AdvisoryController extends BaseController {
 
 		const run = (async () => {
 			let streamedAny = false;
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const ctx = prepared.inferenceContext as any;
 
 			// Fallback chain: if a model returns 429/quota error BEFORE any token has
@@ -160,7 +158,6 @@ export class AdvisoryController extends BaseController {
 
 			for (const model of MODELS) {
 				try {
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					const result: any = await infer({
 						env,
 						metadata: ctx.metadata,
@@ -181,7 +178,6 @@ export class AdvisoryController extends BaseController {
 								void writer.write(encoder.encode(chunk));
 							},
 						},
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
 					} as any);
 
 					ok = true;

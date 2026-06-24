@@ -33,7 +33,6 @@ async function runOne(
 	specialist: Specialist,
 	query: string,
 	env: Env,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	inferenceContext: any,
 ): Promise<{ title: string; text: string } | null> {
 	try {
@@ -66,7 +65,6 @@ async function runOne(
 export async function runSpecialistBrief(
 	query: string,
 	env: Env,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	inferenceContext: any,
 ): Promise<string> {
 	if (!isEnabled(env) || !query?.trim()) return '';
@@ -102,7 +100,6 @@ export async function runSpecialistBrief(
 export async function runSpecialistsToPlan(
 	query: string,
 	env: Env,
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	inferenceContext: any,
 	userId: string | undefined,
 	appId: string | undefined,
