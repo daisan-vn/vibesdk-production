@@ -44,6 +44,8 @@ export async function runnerFetch(url: string, method: 'GET' | 'POST' | 'DELETE'
 /**
  * Client for interacting with the Runner Service API.
  */
+import type { DeployCorrelation } from './deploymentDiagnostics';
+
 export class RemoteSandboxServiceClient extends BaseSandboxService{
     private static sandboxServiceUrl: string;
     private static token: string;
@@ -119,7 +121,8 @@ export class RemoteSandboxServiceClient extends BaseSandboxService{
      * Create a new runner instance.
      */
     async createInstance(
-        options: InstanceCreationRequest
+        options: InstanceCreationRequest,
+        _correlation?: DeployCorrelation
     ): Promise<BootstrapResponse> {
         return this.makeRequest('/instances', 'POST', BootstrapResponseSchema, options);
     }

@@ -33,6 +33,7 @@ import {
 } from './sandboxTypes';
   
 import { createObjectLogger, StructuredLogger } from '../../logger';
+import type { DeployCorrelation } from './deploymentDiagnostics';
 import { env } from 'cloudflare:workers'
 import { ZipExtractor } from './zipExtractor';
 import { FileTreeBuilder } from './fileTreeBuilder';
@@ -226,7 +227,8 @@ export abstract class BaseSandboxService {
      * @param options - Instance creation options
      */
     abstract createInstance(
-        options: InstanceCreationRequest
+        options: InstanceCreationRequest,
+        correlation?: DeployCorrelation
     ): Promise<BootstrapResponse>;
 
     /**

@@ -29,6 +29,11 @@ import {
 import { createObjectLogger } from '../../logger';
 import { env } from 'cloudflare:workers'
 import { BaseSandboxService } from './BaseSandboxService';
+import {
+    DeployCorrelation,
+    withSandboxInstance,
+    logDeployEvent,
+} from './deploymentDiagnostics';
 
 import { 
     buildDeploymentConfig, 
@@ -348,7 +353,12 @@ export class SandboxSdkClient extends BaseSandboxService {
         }
     }
 
-    async writeFilesBulk(instanceId: string, files: TemplateFile[]): Promise<WriteFilesResponse> {
+    async writeFilesBulk(instanceId: string, files: TemplateFile[], correlation?: DeployCorrelation): Promise<WriteFilesResponse> {
+        const transferT0 = Date.now();
+        const totalBytes = files.reduce((n, f) => n + (f.fileContents ? f.fileContents.length : 0), 0);
+        logDeployEvent(this.logger, correlation, 'source_preparation_started', {
+            phase: 'source_transfer', fileCount: files.length, totalBytes,
+        });
         try {
             const session = await this.getInstanceSession(instanceId);
             // Use batch script for efficient writing (3 requests for any number of files)
@@ -356,9 +366,15 @@ export class SandboxSdkClient extends BaseSandboxService {
                 filePath: `/workspace/${instanceId}/${file.filePath}`,
                 fileContents: file.fileContents
             }));
-            
+            logDeployEvent(this.logger, correlation, 'source_preparation_completed', {
+                phase: 'source_transfer', fileCount: filesToWrite.length, totalBytes,
+            });
+
+            logDeployEvent(this.logger, correlation, 'source_transfer_started', {
+                phase: 'source_transfer', fileCount: filesToWrite.length, totalBytes,
+            });
             const writeResults = await this.writeFilesViaScript(filesToWrite, session);
-            
+
             // Map results back to original format
             const results: WriteFilesResponse['results'] = [];
             for (const writeResult of writeResults) {
@@ -369,6 +385,15 @@ export class SandboxSdkClient extends BaseSandboxService {
                 });
             }
 
+            const failedCount = results.filter(r => !r.success).length;
+            logDeployEvent(this.logger, correlation,
+                failedCount > 0 ? 'source_transfer_failed' : 'source_transfer_completed', {
+                    phase: 'source_transfer',
+                    fileCount: results.length,
+                    failedCount,
+                    elapsedMs: Date.now() - transferT0,
+                }, failedCount > 0 ? 'warn' : 'info');
+
             return {
                 success: true,
                 results,
@@ -376,6 +401,12 @@ export class SandboxSdkClient extends BaseSandboxService {
             };
         } catch (error) {
             this.logger.error('writeFiles', error, { instanceId });
+            logDeployEvent(this.logger, correlation, 'source_transfer_failed', {
+                phase: 'source_transfer',
+                fileCount: files.length,
+                elapsedMs: Date.now() - transferT0,
+                stderrTail: error instanceof Error ? error.message : String(error),
+            }, 'error');
             return {
                 success: false,
                 results: files.map(f => ({ file: f.filePath, success: false, error: 'Instance error' })),
@@ -573,7 +604,7 @@ export class SandboxSdkClient extends BaseSandboxService {
     /**
      * Waits for the development server to be ready by monitoring logs for readiness indicators
      */
-    private async waitForServerReady(instanceId: string, processId: string, port: number, maxWaitTimeMs: number = 10000): Promise<boolean> {
+    private async waitForServerReady(instanceId: string, processId: string, port: number, maxWaitTimeMs: number = 10000, correlation?: DeployCorrelation): Promise<boolean> {
         const startTime = Date.now();
         const pollIntervalMs = 500;
         const maxAttempts = Math.ceil(maxWaitTimeMs / pollIntervalMs);
@@ -589,6 +620,12 @@ export class SandboxSdkClient extends BaseSandboxService {
         ];
 
         this.logger.info('Waiting for development server', { instanceId, processId, timeoutMs: maxWaitTimeMs });
+        logDeployEvent(this.logger, correlation, 'health_check_started', {
+            phase: 'health_check', expectedPort: port, checkedPort: port, timeoutMs: maxWaitTimeMs,
+        });
+        logDeployEvent(this.logger, correlation, 'internal_port_check_started', {
+            phase: 'internal_port', expectedPort: port, checkedPort: port, timeoutMs: maxWaitTimeMs,
+        });
 
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
             try {
@@ -605,6 +642,12 @@ export class SandboxSdkClient extends BaseSandboxService {
                         elapsedTimeMs: elapsedTime,
                         attempts: `${attempt}/${maxAttempts}`,
                     });
+                    logDeployEvent(this.logger, correlation, 'internal_port_ready', {
+                        phase: 'internal_port', checkedPort: port, expectedPort: port, elapsedMs: elapsedTime, attempt, processAlive: true,
+                    });
+                    logDeployEvent(this.logger, correlation, 'health_check_succeeded', {
+                        phase: 'health_check', checkedPort: port, elapsedMs: elapsedTime, attempt, readyBy: 'port_listen',
+                    });
                     return true;
                 }
 
@@ -619,6 +662,9 @@ export class SandboxSdkClient extends BaseSandboxService {
                         if (pattern.test(logs)) {
                             const elapsedTime = Date.now() - startTime;
                             this.logger.info('Development server ready', { instanceId, elapsedTimeMs: elapsedTime, attempts: `${attempt}/${maxAttempts}` });
+                            logDeployEvent(this.logger, correlation, 'health_check_succeeded', {
+                                phase: 'health_check', checkedPort: port, elapsedMs: elapsedTime, attempt, readyBy: 'log_pattern',
+                            });
                             return true;
                         }
                     }
@@ -640,24 +686,34 @@ export class SandboxSdkClient extends BaseSandboxService {
         
         const elapsedTime = Date.now() - startTime;
         this.logger.warn('Development server readiness timeout', { instanceId, elapsedTimeMs: elapsedTime, totalAttempts: maxAttempts });
+        logDeployEvent(this.logger, correlation, 'internal_port_failed', {
+            phase: 'internal_port', checkedPort: port, expectedPort: port, elapsedMs: elapsedTime, attempt: maxAttempts, timeoutMs: maxWaitTimeMs,
+        }, 'warn');
+        logDeployEvent(this.logger, correlation, 'health_check_failed', {
+            phase: 'health_check', checkedPort: port, expectedPort: port, elapsedMs: elapsedTime, attempt: maxAttempts, timeoutMs: maxWaitTimeMs,
+        }, 'warn');
         return false;
     }
 
-    private async startDevServer(instanceId: string, initCommand: string, port: number): Promise<string> {
+    private async startDevServer(instanceId: string, initCommand: string, port: number, correlation?: DeployCorrelation): Promise<string> {
+        const startT0 = Date.now();
         try {
             // Use session-based process management
             // Note: Environment variables should already be set via setLocalEnvVars
             const session = await this.getOrCreateSession(`${instanceId}-dev`, `/workspace/${instanceId}`);
-            
+
             // Start process with env vars inline for those not in .dev.vars
             const process = await session.startProcess(
                 `VITE_LOGGER_TYPE=json PORT=${port} monitor-cli process start --instance-id ${instanceId} --port ${port} -- ${initCommand}`
             );
             this.logger.info('Development server started', { instanceId, processId: process.id });
-            
+            logDeployEvent(this.logger, correlation, 'preview_process_started', {
+                phase: 'preview_startup', command: initCommand, expectedPort: port, processId: process.id,
+            });
+
             // Wait for the server to be ready (non-blocking - always returns the process ID)
             try {
-                const isReady = await this.waitForServerReady(instanceId, process.id, port, 10000);
+                const isReady = await this.waitForServerReady(instanceId, process.id, port, 10000, correlation);
                 if (isReady) {
                     this.logger.info('Development server is ready', { instanceId });
                 } else {
@@ -671,6 +727,11 @@ export class SandboxSdkClient extends BaseSandboxService {
             return process.id;
         } catch (error) {
             this.logger.warn('Failed to start dev server', error);
+            logDeployEvent(this.logger, correlation, 'preview_process_failed', {
+                phase: 'preview_startup', command: initCommand, expectedPort: port,
+                elapsedMs: Date.now() - startT0,
+                stderrTail: error instanceof Error ? error.message : String(error),
+            }, 'error');
             throw error;
         }
     }
@@ -915,17 +976,26 @@ export class SandboxSdkClient extends BaseSandboxService {
         projectName: string,
         initCommand: string,
         localEnvVars?: Record<string, string>,
+        correlation?: DeployCorrelation,
     ): Promise<{previewURL: string, tunnelURL: string, processId: string, allocatedPort: number}> {
         try {
             const sandbox = this.getSandbox();
             // Update project configuration with the specified project name
             await this.updateProjectConfiguration(instanceId, projectName);
-            
+
             // Provision Cloudflare resources if template has placeholders
+            const resourcesT0 = Date.now();
+            logDeployEvent(this.logger, correlation, 'template_resources_started', { phase: 'template_resources' });
             const resourceProvisioningResult = await this.provisionTemplateResources(instanceId, projectName);
             if (!resourceProvisioningResult.success && resourceProvisioningResult.failed.length > 0) {
                 this.logger.warn(`Some resources failed to provision for ${instanceId}, but continuing setup process`);
             }
+            logDeployEvent(this.logger, correlation,
+                resourceProvisioningResult.success ? 'template_resources_completed' : 'template_resources_failed', {
+                    phase: 'template_resources',
+                    elapsedMs: Date.now() - resourcesT0,
+                    failedCount: resourceProvisioningResult.failed?.length,
+                }, resourceProvisioningResult.success ? 'info' : 'warn');
             
             // Store wrangler.jsonc configuration in KV after resource provisioning
             try {
@@ -1009,6 +1079,9 @@ export class SandboxSdkClient extends BaseSandboxService {
             // rather than bun. Try managers in order until one succeeds.
             const installCommands = ['bun install', 'npm install', 'yarn install'];
             const installT0 = Date.now();
+            logDeployEvent(this.logger, correlation, 'dependency_install_started', {
+                phase: 'dependency_install', command: installCommands[0], timeoutMs: 240000,
+            });
             let usedInstallCmd = installCommands[0];
             let installResult = await this.executeCommand(instanceId, installCommands[0], { timeout: 240000 });
             for (let i = 1; i < installCommands.length && installResult.exitCode !== 0; i++) {
@@ -1022,6 +1095,16 @@ export class SandboxSdkClient extends BaseSandboxService {
             }
             // P1 — lifecycle instrumentation: which manager won, exit code, and how long.
             this.logger.info('[lifecycle] dependencies installed', { instanceId, command: usedInstallCmd, exitCode: installResult.exitCode, durationMs: Date.now() - installT0 });
+            logDeployEvent(this.logger, correlation,
+                installResult.exitCode === 0 ? 'dependency_install_completed' : 'dependency_install_failed', {
+                    phase: 'dependency_install',
+                    command: usedInstallCmd,
+                    exitCode: installResult.exitCode,
+                    elapsedMs: Date.now() - installT0,
+                    timeoutMs: 240000,
+                    stdoutTail: installResult.exitCode === 0 ? undefined : installResult.stdout,
+                    stderrTail: installResult.exitCode === 0 ? undefined : installResult.stderr,
+                }, installResult.exitCode === 0 ? 'info' : 'error');
                 
             if (installResult.exitCode === 0) {
                 if (localEnvVars) {
@@ -1044,7 +1127,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                             // ignore - port may not be exposed
                         }
 
-                        const processId = await this.startDevServer(instanceId, initCommand, allocatedPort);
+                        const processId = await this.startDevServer(instanceId, initCommand, allocatedPort, correlation);
                         this.logger.info('Instance created successfully', { instanceId, processId, port: allocatedPort });
 
                         // Expose a public preview URL. Best-effort: the container and dev
@@ -1060,18 +1143,31 @@ export class SandboxSdkClient extends BaseSandboxService {
                         const previewDomain = getPreviewDomain(env);
                         const canExposeViaDomain = !!previewDomain && previewDomain.trim() !== '' && !previewDomain.endsWith('.workers.dev');
                         if (canExposeViaDomain) {
+                            const exposeT0 = Date.now();
+                            logDeployEvent(this.logger, correlation, 'port_exposure_started', {
+                                phase: 'port_exposure', checkedPort: allocatedPort, expectedPort: allocatedPort,
+                            });
                             try {
                                 const previewResult = await sandbox.exposePort(allocatedPort, { hostname: previewDomain });
                                 previewURL = previewResult.url;
                                 if (!isDev(env) && env.CUSTOM_DOMAIN) {
                                     previewURL = previewURL.replace(env.CUSTOM_DOMAIN, previewDomain);
                                 }
+                                logDeployEvent(this.logger, correlation, 'port_exposure_completed', {
+                                    phase: 'port_exposure', checkedPort: allocatedPort,
+                                    elapsedMs: Date.now() - exposeT0, hasPreviewURL: !!previewURL,
+                                });
                             } catch (error) {
                                 this.logger.warn('Failed to expose preview port; continuing without a direct preview URL', {
                                     instanceId,
                                     allocatedPort,
                                     error: error instanceof Error ? error.message : String(error),
                                 });
+                                logDeployEvent(this.logger, correlation, 'port_exposure_failed', {
+                                    phase: 'port_exposure', checkedPort: allocatedPort,
+                                    elapsedMs: Date.now() - exposeT0,
+                                    stderrTail: error instanceof Error ? error.message : String(error),
+                                }, 'warn');
                             }
                         }
 
@@ -1124,9 +1220,10 @@ export class SandboxSdkClient extends BaseSandboxService {
     }
     
     async createInstance(
-        options: InstanceCreationRequest
+        options: InstanceCreationRequest,
+        correlation?: DeployCorrelation
     ): Promise<BootstrapResponse> {
-        const { files, projectName, webhookUrl, envVars, initCommand } = options;   
+        const { files, projectName, webhookUrl, envVars, initCommand } = options;
         try {
             // Environment variables will be set via session creation on first use
             if (envVars && Object.keys(envVars).length > 0) {
@@ -1165,6 +1262,9 @@ export class SandboxSdkClient extends BaseSandboxService {
                 instanceId = `i-${generateId()}`;
             }
             this.logger.info('Creating sandbox instance', { instanceId, projectName });
+            const corr = correlation ? withSandboxInstance(correlation, instanceId) : undefined;
+            const provisionT0 = Date.now();
+            logDeployEvent(this.logger, corr, 'sandbox_provisioning_started', { phase: 'sandbox_provisioning' });
 
             const dontTouchFile = files.find(f => f.filePath === '.donttouch_files.json');
             const dontTouchFiles = dontTouchFile ? JSON.parse(dontTouchFile.fileContents) : [];
@@ -1176,7 +1276,7 @@ export class SandboxSdkClient extends BaseSandboxService {
             await this.sandbox.exec(`mkdir -p /workspace/${instanceId}`);
 
             // Write files in bulk to sandbox
-            const rawResults = await this.writeFilesBulk(instanceId, files);
+            const rawResults = await this.writeFilesBulk(instanceId, files, corr);
             if (!rawResults.success) {
                 return {
                     success: false,
@@ -1184,7 +1284,7 @@ export class SandboxSdkClient extends BaseSandboxService {
                 };
             }
             
-            const results = await this.setupInstance(instanceId, projectName, initCommand, envVars);
+            const results = await this.setupInstance(instanceId, projectName, initCommand, envVars, corr);
             // Store instance metadata
             const metadata = {
                 projectName: projectName,
@@ -1199,6 +1299,11 @@ export class SandboxSdkClient extends BaseSandboxService {
             };
             await this.storeInstanceMetadata(instanceId, metadata);
 
+            logDeployEvent(this.logger, corr, 'sandbox_provisioning_completed', {
+                phase: 'sandbox_provisioning',
+                elapsedMs: Date.now() - provisionT0,
+            });
+
             return {
                 success: true,
                 runId: instanceId,
@@ -1209,6 +1314,10 @@ export class SandboxSdkClient extends BaseSandboxService {
             };
         } catch (error) {
             this.logger.error(`Failed to create instance for project ${projectName}`, error);
+            logDeployEvent(this.logger, correlation, 'sandbox_provisioning_failed', {
+                phase: 'sandbox_provisioning',
+                stderrTail: error instanceof Error ? error.message : String(error),
+            }, 'error');
             return {
                 success: false,
                 error: `Failed to create instance: ${error instanceof Error ? error.message : 'Unknown error'}`

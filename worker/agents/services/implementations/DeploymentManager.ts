@@ -17,6 +17,14 @@ import { validateAndCleanBootstrapCommands } from 'worker/agents/utils/common';
 import { DeploymentTarget } from '../../core/types';
 import { BaseProjectState } from '../../core/state';
 import { resolvePreviewUrl } from '../../../utils/urls';
+import {
+    DeployCorrelation,
+    makeDeployCorrelation,
+    withDeploymentAttempt,
+    withSandboxInstance,
+    readWorkerDeploymentId,
+    logDeployEvent,
+} from '../../../services/sandbox/deploymentDiagnostics';
 
 // A first sandbox deploy must run `bun install` (up to ~4 min for imported projects —
 // see SandboxSdkClient.setupInstance) BEFORE the dev server starts. The per-attempt
@@ -319,13 +327,34 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
 
         logger.info("Deploying to sandbox", { files: files.length, redeploy, commitMessage, sessionId: this.getSessionId() });
 
+        // P3 diagnostics: build the immutable correlation once and thread it down the
+        // deploy chain so every sandbox-layer event is attributable to this build.
+        const dstate = this.getState();
+        const correlation = makeDeployCorrelation({
+            agentId: this.getAgentId(),
+            sessionId: this.getSessionId(),
+            templateName: dstate.templateName,
+            workerDeploymentId: readWorkerDeploymentId(this.env),
+        });
+        const handoffFiles = this.fileManager.getAllFiles();
+        logDeployEvent(logger, correlation, 'code_generation_completed', {
+            phase: 'handoff',
+            redeploy,
+            fileCount: handoffFiles.length,
+            totalSourceBytes: handoffFiles.reduce((n, f) => n + (f.fileContents ? f.fileContents.length : 0), 0),
+            hasPackageJson: handoffFiles.some(f => f.filePath === 'package.json'),
+            hasLockfile: handoffFiles.some(f => /(?:^|\/)(bun\.lock|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$/.test(f.filePath)),
+            hasWranglerConfig: handoffFiles.some(f => f.filePath === 'wrangler.jsonc' || f.filePath === 'wrangler.json'),
+        });
+
         // Create deployment promise
         this.currentDeploymentPromise = this.executeDeploymentWithRetry(
             files,
             redeploy,
             commitMessage,
             clearLogs,
-            callbacks
+            callbacks,
+            correlation
         );
 
         try {
@@ -357,7 +386,8 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
         redeploy: boolean,
         commitMessage: string | undefined,
         clearLogs: boolean,
-        callbacks?: SandboxDeploymentCallbacks
+        callbacks?: SandboxDeploymentCallbacks,
+        correlation?: DeployCorrelation
     ): Promise<PreviewType> {
         const logger = this.getLog();
         let attempt = 0;
@@ -365,6 +395,7 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
         
         while (true) {
             attempt++;
+            const attemptCorrelation = correlation ? withDeploymentAttempt(correlation, attempt) : undefined;
             logger.info(`Deployment attempt ${attempt}`, { sessionId: this.getSessionId() });
             
             try {
@@ -385,7 +416,7 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
                     redeploy,
                     commitMessage,
                     clearLogs
-                });
+                }, attemptCorrelation);
                 
                 const result = await this.withTimeout(
                     deployPromise,
@@ -418,6 +449,12 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
                     tunnelURL: preview.tunnelURL ?? ''
                 });
 
+                logDeployEvent(
+                    logger,
+                    attemptCorrelation ? withSandboxInstance(attemptCorrelation, preview.runId) : undefined,
+                    'preview_ready',
+                    { phase: 'preview_ready', attempt, hasPreviewURL: !!preview.previewURL, hasTunnelURL: !!preview.tunnelURL },
+                );
                 logger.info('Deployment succeeded', { attempt, sessionId: this.getSessionId() });
                 return preview;
                 
@@ -464,14 +501,14 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
     /**
      * Deploy files to sandbox instance (core deployment)
      */
-    private async deploy(params: DeploymentParams): Promise<DeploymentResult> {
+    private async deploy(params: DeploymentParams, correlation?: DeployCorrelation): Promise<DeploymentResult> {
         const { files, redeploy, commitMessage, clearLogs } = params;
         const logger = this.getLog();
-        
+
         logger.info("Deploying code to sandbox service");
 
         // Ensure instance exists and is healthy
-        const instanceResult = await this.ensureInstance(redeploy);
+        const instanceResult = await this.ensureInstance(redeploy, correlation);
         const { sandboxInstanceId, previewURL, tunnelURL, redeployed } = instanceResult;
 
         // Determine which files to deploy
@@ -517,7 +554,7 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
     /**
      * Ensure sandbox instance exists and is healthy
      */
-    async ensureInstance(redeploy: boolean): Promise<DeploymentResult> {
+    async ensureInstance(redeploy: boolean, correlation?: DeployCorrelation): Promise<DeploymentResult> {
         if (redeploy) {
             this.resetSessionId();
         }
@@ -541,7 +578,7 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
             logger.error(`DEPLOYMENT CHECK FAILED: Failed to get status for instance ${sandboxInstanceId}, redeploying...`);
         }
 
-        const results = await this.createNewInstance();
+        const results = await this.createNewInstance(correlation);
         // Require only a runId: a missing previewURL is expected on workers.dev (no
         // wildcard preview domain) and must not block lint/deploy on a live instance.
         if (!results || !results.runId) {
@@ -566,7 +603,7 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
     /**
      * Create new sandbox instance
      */
-    private async createNewInstance(): Promise<BootstrapResponse | null> {
+    private async createNewInstance(correlation?: DeployCorrelation): Promise<BootstrapResponse | null> {
         const state = this.getState();
         const projectName = state.projectName;
 
@@ -623,12 +660,18 @@ export class DeploymentManager extends BaseAgentService<BaseProjectState> implem
             }
         }
 
+        logDeployEvent(logger, correlation, 'preview_command_resolved', {
+            phase: 'preview_command',
+            command: initCommand,
+            expectedPort: 8001,
+        });
+
         const createResponse = await client.createInstance({
             files,
             projectName,
             initCommand,
             envVars: localEnvVars
-        });
+        }, correlation);
 
         if (!createResponse || !createResponse.success || !createResponse.runId) {
             throw new Error(`Failed to create sandbox instance: ${createResponse?.error || 'Unknown error'}`);
