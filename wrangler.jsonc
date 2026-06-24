@@ -8,6 +8,10 @@
 	"main": "worker/index.ts",
 	"compatibility_date": "2025-08-10",
 	"compatibility_flags": ["nodejs_compat"],
+	// Local dev only: skip building/running container images. Cloudflare
+	// Containers local dev is unsupported on Windows (needs WSL). This does
+	// NOT affect `deploy` — production still uses the top-level `containers`.
+	"dev": { "enable_containers": false },
     "version_metadata": {
         "binding": "CF_VERSION_METADATA"
     },
