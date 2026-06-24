@@ -683,20 +683,27 @@ export function useChat({
         };
     }, [websocket]);
 
-    // Heartbeat: while connected, ping every 30s so the WS isn't dropped for
-    // idleness during long quiet build stretches (the server ignores 'ping').
-    // This cuts the "Reconnecting…" churn and the dropped sends it caused (e.g.
-    // the Auto-fix suggestion silently not reaching the agent). Self-contained:
-    // restarts on reconnect (new socket) and clears on disconnect/unmount.
+    // Heartbeat: ping frequently so the WS isn't dropped for idleness during long
+    // quiet build stretches (the server ignores 'ping'). This is what cuts the
+    // "Reconnecting…" churn — and the frozen controls / dropped sends it caused.
+    // Two deliberate choices:
+    //  - Keyed ONLY on the socket (not connectionState): a brief reconnecting↔
+    //    connected flap must NOT keep resetting the timer before it can fire, or the
+    //    socket sits idle long enough for the edge to drop it → reconnect → repeat.
+    //  - First ping is sent immediately, then every 10s, so a fresh socket has
+    //    traffic well before any edge idle-timeout (~30s observed in prod).
+    // Restarts on reconnect (new socket), clears on disconnect/unmount.
     useEffect(() => {
-        if (!websocket || connectionState !== 'connected') return;
-        const id = setInterval(() => {
-            if (websocket.readyState === 1) {
+        if (!websocket) return;
+        const ping = () => {
+            if (websocket.readyState === WebSocket.OPEN) {
                 try { websocket.send(JSON.stringify({ type: 'ping' })); } catch { /* socket closing */ }
             }
-        }, 30000);
+        };
+        ping();
+        const id = setInterval(ping, 10000);
         return () => clearInterval(id);
-    }, [websocket, connectionState]);
+    }, [websocket]);
 
 	useEffect(() => {
 		if (edit) {
