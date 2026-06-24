@@ -226,15 +226,33 @@ export class AuthController extends BaseController {
      * Get current user profile
      * GET /api/auth/profile
      */
-    static async getProfile(_request: Request, _env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
+    static async getProfile(_request: Request, env: Env, _ctx: ExecutionContext, routeContext: RouteContext): Promise<Response> {
         try {
-            if (!routeContext.user) {
+            const user = routeContext.user;
+            if (!user) {
                 return AuthController.createErrorResponse('Unauthorized', 401);
             }
-            return AuthController.createSuccessResponse({
-                user: mapUserResponse(routeContext.user),
+            const response = AuthController.createSuccessResponse({
+                user: mapUserResponse(user),
                 sessionId: routeContext.sessionId
             });
+            // Sliding session: re-mint the access-token cookie on each profile check
+            // (the client pings this hourly). An actively-used session is therefore
+            // continuously extended and never expires out from under the user.
+            if (routeContext.sessionId) {
+                try {
+                    const { accessToken, expiresIn } = await JWTUtils.getInstance(env).createAccessToken(
+                        user.id,
+                        user.email,
+                        routeContext.sessionId,
+                    );
+                    setSecureAuthCookies(response, { accessToken, accessTokenExpiry: expiresIn });
+                } catch (err) {
+                    // Non-fatal: the existing cookie keeps working until its own expiry.
+                    AuthController.logger.warn('Sliding session refresh failed', err);
+                }
+            }
+            return response;
         } catch (error) {
             return AuthController.handleError(error, 'get profile');
         }
@@ -372,6 +390,7 @@ export class AuthController extends BaseController {
             
             setSecureAuthCookies(response, {
                 accessToken: result.accessToken,
+                accessTokenExpiry: SessionService.config.sessionTTL
             });
             
             return response;

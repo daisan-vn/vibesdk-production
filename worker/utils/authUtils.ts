@@ -213,7 +213,7 @@ export function setSecureAuthCookies(
 ): void {
 	const {
 		accessToken,
-		accessTokenExpiry = 3 * 24 * 60 * 60, // 3 days
+		accessTokenExpiry = 90 * 24 * 60 * 60, // 90 days fallback; callers pass SessionService.config.sessionTTL
 	} = tokens;
 
 	// Set access token cookie

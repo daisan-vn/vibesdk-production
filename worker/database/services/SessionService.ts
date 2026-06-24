@@ -31,7 +31,7 @@ interface SessionConfig {
 export class SessionService extends BaseService {
     static readonly config: SessionConfig = {
         maxSessions: 5,
-        sessionTTL: 3 * 24 * 60 * 60,
+        sessionTTL: 90 * 24 * 60 * 60, // 90 days; getProfile re-mints the token on each check (sliding session) so active users never get logged out
         cleanupInterval: 60 * 60, // 1 hour
         maxConcurrentDevices: 3, // Max 3 devices concurrently
     };
